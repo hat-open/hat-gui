@@ -11,11 +11,16 @@ import hat.event.common
 import hat.monitor.common
 
 
+package_path: Path = Path(__file__).parent
+"""Python package path"""
+
+builtin_views_path: Path = package_path / 'views'
+"""Builtin views path"""
+
 json_schema_repo: json.SchemaRepository = json.SchemaRepository(
     json.json_schema_repo,
     hat.monitor.common.json_schema_repo,
-    json.SchemaRepository.from_json(Path(__file__).parent /
-                                    'json_schema_repo.json'))
+    json.SchemaRepository.from_json(package_path / 'json_schema_repo.json'))
 """JSON schema repository"""
 
 AdapterConf = json.Data
