@@ -37,14 +37,19 @@ user_conf_dir: Path = Path(appdirs.user_config_dir('hat'))
                    "(default $XDG_CONFIG_HOME/hat/gui.{yaml|yml|json})")
 def main(conf: typing.Optional[Path]):
     """GUI Server"""
-    aio.init_asyncio()
-
     if not conf:
         for suffix in ('.yaml', '.yml', '.json'):
             conf = (user_conf_dir / 'gui').with_suffix(suffix)
             if conf.exists():
                 break
     conf = json.decode_file(conf)
+    sync_main(conf)
+
+
+def sync_main(conf: json.Data):
+    """Sync main entry point"""
+    aio.init_asyncio()
+
     hat.gui.common.json_schema_repo.validate('hat-gui://main.yaml#', conf)
 
     for adapter_conf in conf['adapters']:
