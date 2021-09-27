@@ -245,7 +245,7 @@ class AdapterSessionClient(common.AdapterSessionClient):
 
     def set_local_data(self, data):
         if not self.is_open:
-            raise Exception('adapter session client not open')
+            return
 
         local_data = dict(self._conn.local_data or {})
         local_data[self._name] = data
