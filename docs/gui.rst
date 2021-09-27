@@ -109,23 +109,18 @@ Supported juggler `MESSAGE` messages sent from client to server are::
                 - password
             properties:
                 type:
-                    enum:
-                        - login
+                    const: login
                 name:
                     type: string
                 password:
                     type: string
-                    description: |
-                        this property contains SHA-256 password
-                        hash encoded as hex string
         logout:
             type: object
             required:
                 - type
             properties:
                 type:
-                    enum:
-                        - logout
+                    const: logout
         adapter:
             type: object
             required:
@@ -134,8 +129,7 @@ Supported juggler `MESSAGE` messages sent from client to server are::
                 - data
             properties:
                 type:
-                    enum:
-                        - adapter
+                    const: adapter
                 name:
                     type: string
                     description: adapter instance name
@@ -158,8 +152,7 @@ Supported juggler `MESSAGE` messages sent from server to client are::
                 - conf
             properties:
                 type:
-                    enum:
-                        - state
+                    const: state
                 reason:
                     enum:
                         - init
@@ -182,8 +175,7 @@ Supported juggler `MESSAGE` messages sent from server to client are::
                 - data
             properties:
                 type:
-                    enum:
-                        - adapter
+                    const: adapter
                 name:
                     type: string
                     description: adapter instance name
@@ -382,9 +374,9 @@ When evaluation finishes, environment should contain:
 
     * ``init``
 
-        optional initialization function which is called immediately after
-        evaluation of `index.js` finishes (this function has no input arguments
-        and its return value is ignored)
+        optional initialization function/coroutine which is called immediately
+        after evaluation of `index.js` finishes (this function has no input
+        arguments)
 
     *  ``vt``
 
@@ -393,8 +385,8 @@ When evaluation finishes, environment should contain:
 
     * ``destroy``
 
-        optional function called prior to evaluation of other view's `index.js`
-        (this function has no input arguments and its return value is ignored)
+        optional function/coroutine called prior to evaluation of other view's
+        `index.js` (this function has no input arguments)
 
 Views available as part of `hat-gui` package:
 

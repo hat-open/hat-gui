@@ -69,7 +69,7 @@ class ViewManager {
     async _initView(msg) {
         if (this.view) {
             if (this.view.destroy)
-                this.view.destroy();
+                await this.view.destroy();
             this._view = null;
             this._hat = null;
         }
@@ -125,13 +125,11 @@ class ViewConnection {
      * @param {string} password
      */
     login(name, password) {
-        sha256(password).then(
-            hash => this._conn.send({
-                type: 'login',
-                name: name,
-                password: hash
-            })
-        );
+        this._conn.send({
+            type: 'login',
+            name: name,
+            password: password
+        });
     }
 
     /**
@@ -153,19 +151,6 @@ class ViewConnection {
             data: msg
         });
     }
-}
-
-
-async function sha256(text) {
-    /* Implementation from
-     * https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest
-     */
-    const textUint8 = new TextEncoder().encode(text);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', textUint8);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(
-        b => b.toString(16).padStart(2, '0')).join('');
-    return hashHex;
 }
 
 

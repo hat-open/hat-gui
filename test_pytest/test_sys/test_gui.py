@@ -152,8 +152,7 @@ class Client(aio.Resource):
 
     async def login(self, name=None, password=None):
         name = name or self._user_conf['name']
-        password = (password.encode().hex() if password
-                    else self._user_conf['password']['pass'])
+        password = password or self._user_conf['password']['pass']
         await self._conn.send({'type': 'login',
                                'name': name,
                                'password': password})
@@ -280,8 +279,9 @@ def generate_password():
     salt = secrets.token_bytes(16)
     m = hashlib.sha256(salt)
     m.update(password_hashed)
-    return {'hash': m.hexdigest(), 'salt': salt.hex(),
-            'pass': password_hashed.hex()}
+    return {'hash': m.hexdigest(),
+            'salt': salt.hex(),
+            'pass': password}
 
 
 @pytest.fixture

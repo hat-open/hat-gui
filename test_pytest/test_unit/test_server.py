@@ -44,10 +44,6 @@ def get_password_conf(password, salt):
             'salt': salt.hex()}
 
 
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-
 class Adapter(common.Adapter):
 
     def __init__(self):
@@ -136,7 +132,7 @@ async def test_login(ui_addr, ws_addr):
 
     await client.send({'type': 'login',
                        'name': 'abc',
-                       'password': hash_password('bca')})
+                       'password': 'bca'})
 
     state = await client.receive()
     assert state == {'type': 'state',
@@ -148,7 +144,7 @@ async def test_login(ui_addr, ws_addr):
 
     await client.send({'type': 'login',
                        'name': 'user',
-                       'password': hash_password('pass')})
+                       'password': 'pass'})
     state = await client.receive()
     assert state == {'type': 'state',
                      'reason': 'login',
@@ -192,7 +188,7 @@ async def test_adapter_session(ui_addr, ws_addr):
 
     await client.send({'type': 'login',
                        'name': 'user',
-                       'password': hash_password('pass')})
+                       'password': 'pass'})
     state = await client.receive()
     assert state['reason'] == 'login'
 
@@ -226,7 +222,7 @@ async def test_adapter_send_receive(ui_addr, ws_addr):
     await client.receive()
     await client.send({'type': 'login',
                        'name': 'user',
-                       'password': hash_password('pass')})
+                       'password': 'pass'})
     await client.receive()
     session = await adapter.session_queue.get()
 
@@ -261,7 +257,7 @@ async def test_adapter_remote_data(ui_addr, ws_addr, patch_autoflush_delay):
     client = await juggler.connect(ws_addr, autoflush_delay=0)
     await client.send({'type': 'login',
                        'name': 'user',
-                       'password': hash_password('pass')})
+                       'password': 'pass'})
     session = await adapter.session_queue.get()
 
     assert session.client.remote_data is None

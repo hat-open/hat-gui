@@ -154,13 +154,14 @@ class _Connection(aio.Resource):
         if not user:
             return
 
-        password = bytes.fromhex(password)
+        password_hash = hashlib.sha256(password.encode('utf-8')).digest()
+
         user_salt = bytes.fromhex(user['password']['salt'])
         user_hash = bytes.fromhex(user['password']['hash'])
 
         h = hashlib.sha256()
         h.update(user_salt)
-        h.update(password)
+        h.update(password_hash)
 
         if h.digest() != user_hash:
             return
