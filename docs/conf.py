@@ -11,7 +11,7 @@ extensions = [
 ]
 
 version = (root_path / 'VERSION').read_text().strip()
-project = 'hat-monitor'
+project = 'hat-gui'
 copyright = '2020-2021, Hat Open AUTHORS'
 master_doc = 'index'
 
