@@ -87,7 +87,7 @@ class Engine(aio.Resource):
                     adapter_client = self._adapter_clients[name]
                     adapter_client.receive_queue.put_nowait(list(events))
 
-        except aio.QueueClosedError:
+        except (aio.QueueClosedError, ConnectionError):
             pass
 
         except Exception as e:
