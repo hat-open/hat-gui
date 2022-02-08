@@ -96,7 +96,7 @@ async def async_main(conf: json.Data):
             await async_group.spawn(run_with_event, conf, client)
 
     finally:
-        await aio.uncancellable(monitor.async_close())
+        await aio.uncancellable(async_group.async_close())
 
 
 async def run_with_monitor(component: hat.monitor.client.Component,
