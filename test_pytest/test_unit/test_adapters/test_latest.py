@@ -8,9 +8,6 @@ from hat import util
 import hat.gui.adapters.latest
 
 
-pytestmark = pytest.mark.asyncio
-
-
 @pytest.fixture
 def create_event():
     counter = 0

@@ -168,7 +168,6 @@ class Client(aio.Resource):
 
 
 @pytest.fixture
-@pytest.mark.asyncio
 async def event_client(event_address):
     client = await hat.event.client.connect(
         event_address,
@@ -356,7 +355,6 @@ def run_gui_without_event(tmp_path, monitor_process, gui_conf, gui_port):
     return wrapper
 
 
-@pytest.mark.asyncio
 async def test_monitor_close(tmp_path, run_gui_without_event, gui_conf,
                              monitor_process, monitor_port):
 
@@ -372,7 +370,6 @@ async def test_monitor_close(tmp_path, run_gui_without_event, gui_conf,
     assert not gui_process.is_running()
 
 
-@pytest.mark.asyncio
 async def test_event_close(tmp_path, run_gui_without_event, gui_conf, gui_port,
                            event_conf, event_port, monitor_process):
     gui_process = run_gui_without_event(gui_conf)
@@ -400,7 +397,6 @@ async def test_event_close(tmp_path, run_gui_without_event, gui_conf, gui_port,
     event_process.close_and_wait_or_kill()
 
 
-@pytest.mark.asyncio
 async def test_user_login(run_gui, gui_conf, gui_port,
                           tmp_path, event_process):
     gui_conf = add_adapters_users_roles(gui_conf, tmp_path, no_users_roles=1)
@@ -456,7 +452,6 @@ async def test_user_login(run_gui, gui_conf, gui_port,
     await client.async_close()
 
 
-@pytest.mark.asyncio
 async def test_adapter_msg(run_gui, gui_conf, tmp_path,
                            event_process, event_client):
     gui_conf = add_adapters_users_roles(gui_conf, tmp_path, no_users_roles=1)
@@ -502,7 +497,6 @@ async def test_adapter_msg(run_gui, gui_conf, tmp_path,
     gui_process.close_and_wait_or_kill()
 
 
-@pytest.mark.asyncio
 async def test_adapter_state(run_gui, gui_conf, tmp_path,
                              event_process, event_client):
     gui_conf = add_adapters_users_roles(gui_conf, tmp_path, no_users_roles=1)
@@ -537,7 +531,6 @@ async def test_adapter_state(run_gui, gui_conf, tmp_path,
     gui_process.close_and_wait_or_kill()
 
 
-@pytest.mark.asyncio
 async def test_event_to_adapters(run_gui, gui_conf, tmp_path,
                                  event_process, event_client):
     no_adapters = 10
@@ -567,7 +560,6 @@ async def test_event_to_adapters(run_gui, gui_conf, tmp_path,
     gui_process.close_and_wait_or_kill()
 
 
-@pytest.mark.asyncio
 async def test_invalid_message(run_gui, gui_conf, tmp_path,
                                event_process):
     invalid_msg = {'type': 'invalid',
@@ -602,7 +594,6 @@ async def test_invalid_message(run_gui, gui_conf, tmp_path,
 
 
 @pytest.mark.parametrize("no_users", [1, 3, 10])
-@pytest.mark.asyncio
 async def test_users_roles(tmp_path, run_gui, gui_conf,
                            event_process, event_client, no_users):
     gui_conf = add_adapters_users_roles(gui_conf, tmp_path, no_users,
@@ -639,7 +630,6 @@ async def test_users_roles(tmp_path, run_gui, gui_conf,
 
 
 @pytest.mark.parametrize("conf_format", ['yaml', 'json', 'yml'])
-@pytest.mark.asyncio
 async def test_view_conf(tmp_path, run_gui, gui_conf, gui_port, event_process,
                          conf_format):
 
@@ -677,7 +667,6 @@ async def test_view_conf(tmp_path, run_gui, gui_conf, gui_port, event_process,
     gui_process.close_and_wait_or_kill()
 
 
-@pytest.mark.asyncio
 async def test_view_xml(tmp_path, run_gui, gui_conf, gui_port, event_process):
     xml = '''\
             <html>
@@ -728,7 +717,6 @@ async def test_view_xml(tmp_path, run_gui, gui_conf, gui_port, event_process):
     gui_process.close_and_wait_or_kill()
 
 
-@pytest.mark.asyncio
 async def test_adapter_close(run_gui, gui_conf, tmp_path,
                              event_process, event_client):
     gui_conf = add_adapters_users_roles(gui_conf, tmp_path, no_users_roles=1)

@@ -11,9 +11,6 @@ import hat.event.common
 import hat.gui.engine
 
 
-pytestmark = pytest.mark.asyncio
-
-
 subscription = hat.event.common.Subscription([('a', '*')])
 
 

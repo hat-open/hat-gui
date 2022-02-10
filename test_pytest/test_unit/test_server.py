@@ -11,9 +11,6 @@ import hat.event.common
 import hat.gui.server
 
 
-pytestmark = pytest.mark.asyncio
-
-
 @pytest.fixture
 def ui_port():
     return util.get_unused_tcp_port()

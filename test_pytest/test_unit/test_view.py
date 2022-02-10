@@ -6,9 +6,6 @@ from hat import json
 import hat.gui.view
 
 
-pytestmark = pytest.mark.asyncio
-
-
 async def test_empty_view_manager():
     conf = {'views': []}
     manager = await hat.gui.view.create_view_manager(conf)
