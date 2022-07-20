@@ -4,12 +4,11 @@ import tempfile
 
 from hat import json
 from hat.doit import common
+from hat.doit.docs import (build_sphinx,
+                           build_pdoc)
 from hat.doit.py import (build_wheel,
                          run_pytest,
                          run_flake8)
-from hat.doit.docs import (SphinxOutputType,
-                           build_sphinx,
-                           build_pdoc)
 
 from .views import *  # NOQA
 from . import views
@@ -62,8 +61,8 @@ def task_build():
             description='Hat GUI',
             url='https://github.com/hat-open/hat-gui',
             license=common.License.APACHE2,
-            packages=['hat'],
-            console_scripts=['hat-gui = hat.gui.main:main'])
+            console_scripts=['hat-gui = hat.gui.main:main'],
+            zip_safe=False)
 
     return {'actions': [build],
             'task_dep': ['ui',
@@ -87,11 +86,18 @@ def task_test():
 
 def task_docs():
     """Docs"""
-    return {'actions': [(build_sphinx, [SphinxOutputType.HTML,
-                                        docs_dir,
-                                        build_docs_dir]),
-                        (build_pdoc, ['hat.gui',
-                                      build_docs_dir / 'py_api'])],
+
+    def build():
+        build_sphinx(src_dir=docs_dir,
+                     dst_dir=build_docs_dir,
+                     project='hat-gui',
+                     extensions=['sphinx.ext.graphviz',
+                                 'sphinxcontrib.plantuml',
+                                 'sphinxcontrib.programoutput'])
+        build_pdoc(module='hat.gui',
+                   dst_dir=build_docs_dir / 'py_api')
+
+    return {'actions': [build],
             'task_dep': ['ui',
                          'views',
                          'json_schema_repo']}

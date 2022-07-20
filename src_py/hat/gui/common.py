@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import abc
+import importlib.resources
 import typing
 
 from hat import aio
@@ -17,11 +18,12 @@ package_path: Path = Path(__file__).parent
 builtin_views_path: Path = package_path / 'views'
 """Builtin views path"""
 
-json_schema_repo: json.SchemaRepository = json.SchemaRepository(
-    json.json_schema_repo,
-    hat.monitor.common.json_schema_repo,
-    json.SchemaRepository.from_json(package_path / 'json_schema_repo.json'))
-"""JSON schema repository"""
+with importlib.resources.path(__package__, 'json_schema_repo.json') as _path:
+    json_schema_repo: json.SchemaRepository = json.SchemaRepository(
+        json.json_schema_repo,
+        hat.monitor.common.json_schema_repo,
+        json.SchemaRepository.from_json(_path))
+    """JSON schema repository"""
 
 AdapterConf = json.Data
 """Adapter configuration"""

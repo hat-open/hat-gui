@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import itertools
 
 import pytest
 
@@ -10,12 +11,10 @@ import hat.gui.adapters.latest
 
 @pytest.fixture
 def create_event():
-    counter = 0
+    counter = itertools.count(1)
 
     def create_event(event_type, payload):
-        nonlocal counter
-        counter += 1
-        event_id = hat.event.common.EventId(1, counter)
+        event_id = hat.event.common.EventId(1, 1, next(counter))
         event = hat.event.common.Event(event_id=event_id,
                                        event_type=event_type,
                                        timestamp=hat.event.common.now(),

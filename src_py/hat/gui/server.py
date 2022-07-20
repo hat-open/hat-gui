@@ -1,8 +1,9 @@
 """GUI web server"""
 
-from pathlib import Path
+import contextlib
 import functools
 import hashlib
+import importlib.resources
 import logging
 import typing
 import urllib
@@ -18,12 +19,6 @@ import hat.gui.view
 mlog: logging.Logger = logging.getLogger(__name__)
 """Module logger"""
 
-package_path: Path = Path(__file__).parent
-"""Python package path"""
-
-ui_path: Path = package_path / 'ui'
-"""Web ui directory path"""
-
 autoflush_delay: float = 0.2
 """Juggler autoflush delay"""
 
@@ -37,6 +32,10 @@ async def create_server(conf: json.Data,
     initial_view = conf['initial_view']
     users = {i['name']: i for i in conf['users']}
 
+    exit_stack = contextlib.ExitStack()
+    ui_path = exit_stack.enter_context(
+        importlib.resources.path(__package__, 'ui'))
+
     server = Server()
 
     connection_cb = functools.partial(_Connection, adapters, views,
@@ -46,6 +45,8 @@ async def create_server(conf: json.Data,
                                        connection_cb=connection_cb,
                                        static_dir=ui_path,
                                        autoflush_delay=autoflush_delay)
+
+    server.async_group.spawn(aio.call_on_cancel, exit_stack.close)
 
     mlog.debug("web server listening on %s", conf['address'])
     return server
