@@ -115,7 +115,7 @@ async def run_with_monitor(component: hat.monitor.client.Component,
                            subscriptions: typing.List[hat.event.common.EventType]):  # NOQA
     """Run monitor component"""
     run_cb = functools.partial(run_with_event, conf)
-    await hat.event.eventer_client.run_client(
+    await hat.event.eventer_client.run_eventer_client(
         monitor, conf['event_server_group'], run_cb, subscriptions)
 
 
