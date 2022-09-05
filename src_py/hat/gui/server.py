@@ -113,9 +113,11 @@ class _Connection(aio.Resource):
 
         user = self._authenticate(msg['name'], msg['password'])
         if not user:
+            mlog.debug('user %s authentication failure', msg['name'])
             await self._set_state(None, [], 'auth_fail', self._initial_view)
             return
 
+        mlog.debug('user %s successfully authenticated', msg['name'])
         await self._set_state(user['name'], user['roles'], 'login',
                               user['view'])
 
@@ -123,6 +125,7 @@ class _Connection(aio.Resource):
                                               user['roles'], self._adapters)
 
     async def _process_msg_logout(self, msg):
+        mlog.debug('logout')
         if self._session:
             await self._session.async_close()
             self._session = None
