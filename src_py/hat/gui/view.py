@@ -7,7 +7,6 @@ import typing
 from hat import aio
 from hat import json
 from hat import util
-from hat.gui import vt
 
 
 class View(typing.NamedTuple):
@@ -65,7 +64,7 @@ def _ext_get_view(name, view_path, conf_path):
 
         elif i.suffix in {'.xml', '.svg'}:
             with open(i, encoding='utf-8') as f:
-                content = vt.parse(f)
+                content = json.vt.parse(f)
 
         else:
             with open(i, 'rb') as f:
