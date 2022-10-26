@@ -45,6 +45,7 @@ class ViewManager {
         this._app = app;
         if (app) {
             app.addEventListener('message', evt => this._onMessage(evt.detail));
+            app.addEventListener('disconnected', _ => this._destroyView());
         }
     }
 
@@ -67,16 +68,7 @@ class ViewManager {
     }
 
     async _initView(msg) {
-        if (this.view) {
-            if (this.view.destroy)
-                await this.view.destroy();
-            this._view = null;
-            this._hat = null;
-        }
-        await r.set(defaultState);
-        r.render();
-        document.head.querySelectorAll('style').forEach(
-            node => node.parentNode.removeChild(node));
+        await this._destroyView();
         this._hat = {
             conf: msg.conf,
             reason: msg.reason,
@@ -94,6 +86,19 @@ class ViewManager {
         if (view.init)
             await view.init();
         this._view = view;
+    }
+
+    async _destroyView() {
+        if (this.view) {
+            if (this.view.destroy)
+                await this.view.destroy();
+            this._view = null;
+            this._hat = null;
+        }
+        await r.set(defaultState);
+        r.render();
+        document.head.querySelectorAll('style').forEach(
+            node => node.parentNode.removeChild(node));
     }
 }
 
