@@ -401,4 +401,4 @@ Implementation
 
 Documentation is available as part of generated API reference:
 
-    * `Python hat.gui module <py_api/hat/gui/index.html>`_
+    * `Python hat.gui module <py_api/hat/gui.html>`_
