@@ -1,7 +1,6 @@
 -r requirements.pip.runtime.txt
 
-cryptography >= 37.0.4
-hat-doit ~= 0.11.3
-psutil >= 5.9.1
-sphinxcontrib-plantuml >= 0.24
+hat-doit ~= 0.11.10
+psutil >= 5.9.4
+sphinxcontrib-plantuml >= 0.24.1
 sphinxcontrib-programoutput >= 0.17

@@ -1,22 +1,15 @@
 """Common GUI interfaces"""
 
-from pathlib import Path
 import abc
 import importlib.resources
 import typing
 
 from hat import aio
 from hat import json
-from hat import util
-import hat.event.common
+from hat.event.common import Event, Subscription
+from hat.event.eventer_client import EventerClient
 import hat.monitor.common
 
-
-package_path: Path = Path(__file__).parent
-"""Python package path"""
-
-builtin_views_path: Path = package_path / 'views'
-"""Builtin views path"""
 
 with importlib.resources.path(__package__, 'json_schema_repo.json') as _path:
     json_schema_repo: json.SchemaRepository = json.SchemaRepository(
@@ -28,15 +21,20 @@ with importlib.resources.path(__package__, 'json_schema_repo.json') as _path:
 AdapterConf = json.Data
 """Adapter configuration"""
 
-CreateSubscription = aio.AsyncCallable[
-    [AdapterConf],
-    hat.event.common.Subscription]
+CreateSubscription = aio.AsyncCallable[[AdapterConf], Subscription]
 """Create subscription callable"""
 
-CreateAdapter = aio.AsyncCallable[
-    [AdapterConf, 'AdapterEventClient'],
-    'Adapter']
+CreateAdapter = aio.AsyncCallable[[AdapterConf, EventerClient], 'Adapter']
 """Create adapter callable"""
+
+NotifyCb = typing.Callable[[str, json.Data], None]
+"""Juggler notification callback
+
+Args:
+    name: notification name
+    data: notification data
+
+"""
 
 
 class Adapter(aio.Resource):
@@ -55,8 +53,8 @@ class Adapter(aio.Resource):
     repository will be used for additional validation of adapter configuration
     with JSON schema id.
 
-    Subscription is used for filtering events that can be obtained
-    by calling `AdapterEventClient.receive` method.
+    Subscription is used for filtering events which are notified to adapter
+    by `Adapter.process_events` coroutine.
 
     `create_adapter` is called with adapter instance configuration and adapter
     event client.
@@ -64,8 +62,16 @@ class Adapter(aio.Resource):
     """
 
     @abc.abstractmethod
+    async def process_events(self,
+                             events: typing.List[Event]):
+        """Process received events"""
+
+    @abc.abstractmethod
     async def create_session(self,
-                             client: 'AdapterSessionClient'
+                             user: str,
+                             roles: typing.List[str],
+                             state: json.Storage,
+                             notify_cb: NotifyCb,
                              ) -> 'AdapterSession':
         """Create new adapter session"""
 
@@ -73,66 +79,22 @@ class Adapter(aio.Resource):
 class AdapterSession(aio.Resource):
     """Adapter's single client session"""
 
-
-class AdapterSessionClient(aio.Resource):
-    """Adapter's session client represents single juggler connection"""
-
-    @property
-    def user(self) -> str:
-        """User identifier"""
-
-    @property
-    def roles(self) -> typing.List[str]:
-        """User roles"""
-
-    @property
-    def local_data(self) -> json.Data:
-        """JSON serializable local data"""
-
-    @property
-    def remote_data(self) -> json.Data:
-        """JSON serializable remote data"""
-
-    def register_change_cb(self,
-                           cb: typing.Callable[[], None]
-                           ) -> util.RegisterCallbackHandle:
-        """Register remote data change callback"""
-
-    def set_local_data(self, data: json.Data):
-        """Set local data"""
-
-    async def send(self, msg: json.Data):
-        """Send message"""
-
-    async def receive(self) -> json.Data:
-        """Receive message"""
-
-
-class AdapterEventClient(aio.Resource):
-    """Adapters interface to event client"""
-
     @abc.abstractmethod
-    async def receive(self) -> typing.List[hat.event.common.Event]:
-        """Receive device events"""
+    async def process_request(self,
+                              name: str,
+                              data: json.Data
+                              ) -> json.Data:
+        """Process juggler request"""
 
-    @abc.abstractmethod
-    def register(self, events: typing.List[hat.event.common.RegisterEvent]):
-        """Register device events"""
 
-    @abc.abstractmethod
-    async def register_with_response(self,
-                                     events: typing.List[hat.event.common.RegisterEvent]  # NOQA
-                                     ) -> typing.List[typing.Optional[hat.event.common.Event]]:  # NOQA
-        """Register device events
+async def bind_resource(async_group: aio.Group,
+                        resource: aio.Resource):
+    """Bind resource to async group"""
+    try:
+        async_group.spawn(aio.call_on_cancel, resource.async_close)
+        async_group.spawn(aio.call_on_done, resource.wait_closing(),
+                          async_group.close)
 
-        Each `RegisterEvent` from `events` is paired with results `Event` if
-        new event was successfully created or `None` is new event could not be
-        created.
-
-        """
-
-    @abc.abstractmethod
-    async def query(self,
-                    data: hat.event.common.QueryData
-                    ) -> typing.List[hat.event.common.Event]:
-        """Query device events from server"""
+    except Exception:
+        await aio.uncancellable(resource.async_close())
+        raise

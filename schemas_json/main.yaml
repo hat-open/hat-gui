@@ -15,8 +15,7 @@ allOf:
         - users
     properties:
         type:
-            enum:
-                - gui
+            const: gui
             description: configuration type identification
         version:
             type: string
@@ -26,32 +25,11 @@ allOf:
         adapters:
             type: array
             items:
-                type: object
-                required:
-                    - name
-                    - module
-                properties:
-                    name:
-                        type: string
-                    module:
-                        type: string
+                "$ref": "hat-gui://main.yaml#/definitions/adapter"
         views:
             type: array
             items:
-                type: object
-                required:
-                    - name
-                    - view_path
-                    - conf_path
-                properties:
-                    name:
-                        type: string
-                    view_path:
-                        type: string
-                    conf_path:
-                        type:
-                            - string
-                            - "null"
+                "$ref": "hat-gui://main.yaml#/definitions/view"
         address:
             type: string
             default: "http://localhost:23023"
@@ -62,39 +40,7 @@ allOf:
         users:
             type: array
             items:
-                type: object
-                required:
-                    - name
-                    - password
-                    - roles
-                    - view
-                properties:
-                    name:
-                        type: string
-                    password:
-                        type: object
-                        required:
-                            - hash
-                            - salt
-                        properties:
-                            hash:
-                                type: string
-                                description: |
-                                    SHA256(salt + SHA256(password)) hash encoded as
-                                    hex string
-                            salt:
-                                type: string
-                                decription: |
-                                    unique salt used for generating hash encoded as
-                                    hex string
-                    roles:
-                        type: array
-                        items:
-                            type: string
-                    view:
-                        type:
-                            - string
-                            - "null"
+                "$ref": "hat-gui://main.yaml#/definitions/user"
   - oneOf:
       - type: object
         required:
@@ -111,4 +57,83 @@ allOf:
         properties:
             event_server_address:
                 type: string
+definitions:
+    adapter:
+        type: object
+        required:
+            - name
+            - module
+        properties:
+            name:
+                type: string
+            module:
+                type: string
+    view:
+        allOf:
+          - type: object
+            required:
+                - name
+            properties:
+                name:
+                    type: string
+          - oneOf:
+              - type: object
+                required:
+                    - view_path
+                properties:
+                    view_path:
+                        type: string
+              - type: object
+                required:
+                    - builtin
+                properties:
+                    builtin:
+                        type: string
+          - oneOf:
+              - type: object
+                required:
+                    - conf_path
+                properties:
+                    conf_path:
+                        type: string
+              - type: object
+                required:
+                    - conf
+                properties:
+                    conf:
+                        type: string
+    user:
+        type: object
+        required:
+            - name
+            - password
+            - roles
+            - view
+        properties:
+            name:
+                type: string
+            password:
+                type: object
+                required:
+                    - hash
+                    - salt
+                properties:
+                    hash:
+                        type: string
+                        description: |
+                            SHA256(salt + SHA256(password)) hash encoded as
+                            hex string
+                    salt:
+                        type: string
+                        decription: |
+                            unique salt used for generating hash encoded as
+                            hex string
+            roles:
+                type: array
+                items:
+                    type: string
+            view:
+                type:
+                    - string
+                    - "null"
 ...

@@ -18,14 +18,13 @@ from hat import aio
 from hat import json
 import hat.event.common
 import hat.event.eventer_client
+import hat.monitor.client
+
+from hat.gui import common
 import hat.gui.engine
 import hat.gui.server
 import hat.gui.view
-import hat.monitor.client
 
-
-package_path: Path = Path(__file__).parent
-"""Python package path"""
 
 user_conf_dir: Path = Path(appdirs.user_config_dir('hat'))
 """User configuration directory path"""
@@ -89,19 +88,19 @@ async def async_main(conf: json.Data):
 
         if 'monitor' in conf:
             monitor = await hat.monitor.client.connect(conf['monitor'])
-            _bind_resource(async_group, monitor)
+            await common.bind_resource(async_group, monitor)
 
             component = hat.monitor.client.Component(
                 monitor, run_with_monitor, conf, monitor, subscriptions)
             component.set_ready(True)
-            _bind_resource(async_group, component)
+            await common.bind_resource(async_group, component)
 
             await async_group.wait_closing()
 
         else:
             client = await hat.event.eventer_client.connect(
                 conf['event_server_address'], subscriptions)
-            _bind_resource(async_group, client)
+            await common.bind_resource(async_group, client)
 
             await async_group.spawn(run_with_event, conf, client)
 
@@ -126,25 +125,19 @@ async def run_with_event(conf: json.Data,
 
     try:
         engine = await hat.gui.engine.create_engine(conf, client)
-        _bind_resource(async_group, engine)
+        await common.bind_resource(async_group, engine)
 
         views = await hat.gui.view.create_view_manager(conf)
-        _bind_resource(async_group, views)
+        await common.bind_resource(async_group, views)
 
         server = await hat.gui.server.create_server(conf, engine.adapters,
                                                     views)
-        _bind_resource(async_group, server)
+        await common.bind_resource(async_group, server)
 
         await async_group.wait_closing()
 
     finally:
         await aio.uncancellable(async_group.async_close())
-
-
-def _bind_resource(async_group, resource):
-    async_group.spawn(aio.call_on_cancel, resource.async_close)
-    async_group.spawn(aio.call_on_done, resource.wait_closing(),
-                      async_group.close)
 
 
 async def _create_subscription(conf):
