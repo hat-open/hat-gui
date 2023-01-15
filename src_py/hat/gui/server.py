@@ -74,6 +74,7 @@ class Server(aio.Resource):
 
     async def _on_connection(self, conn):
         try:
+            mlog.debug("creating new client (new juggler connection)")
             client = _Client(conn=conn,
                              adapters=self._adapters,
                              views=self._views,
@@ -83,16 +84,22 @@ class Server(aio.Resource):
 
             await client.wait_closing()
 
+        except Exception as e:
+            mlog.error("on connection error: %s", e, exc_info=e)
+
         finally:
+            mlog.debug("closing juggler connection")
             conn.close()
             self._clients.pop(conn, None)
 
     async def _on_request(self, conn, name, data):
+        mlog.debug("new juggler request: %s", name)
+
         client = self._clients.get(conn)
         if not client:
             raise Exception('invalid connection')
 
-        return client.process_request(name, data)
+        return await client.process_request(name, data)
 
 
 class _Client(aio.Resource):
@@ -131,43 +138,180 @@ class _Client(aio.Resource):
     async def _client_loop(self):
         user = None
         try:
+            mlog.debug("starting client loop")
             while True:
-                if not user:
-                    self._init_state(None, self._initial_view, {})
+                mlog.debug("setting initial state")
+                await self._init_state(None, self._initial_view, {})
 
+                mlog.debug("waiting for authentication")
                 while not user:
                     user = await self._process_loop({})
 
                 while user:
-                    async with self.async_group.create_subgroup() as subgroup:
-                        sessions = {}
-                        states = {}
-                        req_queues = {}
+                    user = await self._sessions_loop(user)
 
-                        for name, adapter in self._adapters.items():
-                            state = json.Storage()
-                            notify_cb = functools.partial(self._notify, name)
-                            states[name] = state
+        except Exception as e:
+            mlog.debug("client loop error: %s", e, exc_info=e)
 
-                            session = await adapter.create_session(
-                                user['name'], user['roles'], state, notify_cb)
-                            await common.bind_resource(subgroup, session)
-                            sessions[name] = session
+        finally:
+            mlog.debug("stopping client loop")
+            self.close()
+            self._req_queue.close()
 
-                            req_queue = aio.Queue()
-                            subgroup.spawn(_session_loop, session, req_queue)
-                            req_queues[name] = req_queue
+            while not self._req_queue.empty():
+                future, _, __ = self._req_queue.get_nowait()
+                if future.done():
+                    continue
+                future.set_exception(ConnectionError())
 
-                        with contextlib.ExitStack() as exit_stack:
-                            for name, state in states.items():
-                                set_state = functools.partial(
-                                    self._set_adapter_state, name)
-                                exit_stack.enter_context(
-                                    state.register_change_cb(set_state))
+    async def _sessions_loop(self, user):
+        mlog.debug("starting sessions loop (user %s)", user['name'])
+        async with self.async_group.create_subgroup() as subgroup:
+            sessions = {}
 
-                            self._init_state(user, user['view'], states)
+            for name, adapter in self._adapters.items():
+                mlog.debug("creating adapter sessions (user %s; adapter %s)",
+                           user['name'], name)
+                notify_cb = functools.partial(self._notify, name)
+                session = await _create_adapter_session_proxy(user, adapter,
+                                                              notify_cb)
+                await common.bind_resource(subgroup, session)
+                sessions[name] = session
 
-                            user = await self._process_loop(req_queues)
+            with contextlib.ExitStack() as exit_stack:
+                for name, session in sessions.items():
+                    exit_stack.enter_context(
+                        sessions.state.register_change_cb(
+                            functools.partial(self._conn.state.set, name)))
+
+                mlog.debug("setting initial state (user %s)",
+                           user['name'])
+                await self._init_state(user, user['view'], sessions)
+
+                return await self._process_loop(session)
+
+    async def _process_loop(self, sessions):
+        while True:
+            future, req_name, req_data = await self._req_queue.get()
+            if future.done():
+                continue
+
+            mlog.debug("processing request %s", req_name)
+
+            try:
+                req_adapter, req_name = _parse_req_name(req_name)
+
+                if req_adapter:
+                    session = sessions.get(req_adapter)
+                    if session is None:
+                        mlog.debug("invalid adapter %s", req_adapter)
+                        raise Exception("unsupported adapter")
+
+                    mlog.debug("queuing adapter request "
+                               "(adapter: %s; name: %s)",
+                               req_adapter, req_name)
+                    session.process_request(future, req_name, req_data)
+                    future = None
+
+                elif req_adapter is None and req_name == 'logout':
+                    mlog.debug("authentication error")
+                    return None
+
+                elif req_adapter is None and req_name == 'login':
+                    user = _authenticate(self._users,
+                                         req_data['name'],
+                                         req_data['password'])
+
+                    if not user:
+                        mlog.debug("authentication error")
+                        future.set_exception(Exception("authentication error"))
+
+                    mlog.debug("authentication success (user %s)",
+                               user['name'])
+                    return None
+
+                else:
+                    mlog.debug("unsupported request")
+                    raise Exception("unsupported request")
+
+            except Exception as e:
+                future.set_exception(e)
+
+            finally:
+                if future and not future.done():
+                    future.set_result(None)
+
+    async def _init_state(self, user, view_name, sessions):
+        view = self._views.get(view_name) if view_name else None
+
+        self._conn.state.set([], {name: session.state.data
+                                  for name, session in sessions.items()})
+        await self._conn.flush()
+
+        await self._conn.notify('init', {
+            'user': (user['name'] if user else None),
+            'roles': (user['roles'] if user else []),
+            'view': (view.data if view else None),
+            'conf': (view.conf if view else None)})
+
+    def _notify(self, adapter_name, name, data):
+        try:
+            self.async_group.spawn(self._conn.notify, f'{adapter_name}/{name}',
+                                   data)
+
+        except Exception:
+            mlog.debug("unsupported request")
+
+
+async def _create_adapter_session_proxy(user, adapter, notify_cb):
+    proxy = _AdapterSessionProxy()
+    proxy._state = json.Storage()
+    proxy._req_queue = aio.Queue()
+
+    proxy._session = await adapter.create_session(user['name'], user['roles'],
+                                                  proxy._state, notify_cb)
+
+    proxy.async_group.spawn(proxy._session_loop)
+
+    return proxy
+
+
+class _AdapterSessionProxy(aio.Resource):
+
+    @property
+    def async_group(self) -> aio.Group:
+        return self._session.async_group
+
+    @property
+    def state(self) -> json.Storage:
+        return self._state
+
+    def process_request(self,
+                        future: asyncio.Future,
+                        name: str,
+                        data: json.Data):
+        self._req_queue.put_nowait((future, name, data))
+
+    async def _session_loop(self):
+        try:
+            while True:
+                future, req_name, req_data = await self._req_queue.get()
+                if future.done():
+                    continue
+
+                try:
+                    result = await self._session.process_request(req_name,
+                                                                 req_data)
+                    if not future.done():
+                        future.set_result(result)
+
+                except Exception as e:
+                    if not future.done():
+                        future.set_exception(e)
+
+                finally:
+                    if not future.done():
+                        future.set_exception(ConnectionError())
 
         finally:
             self.close()
@@ -178,65 +322,6 @@ class _Client(aio.Resource):
                 if future.done():
                     continue
                 future.set_exception(ConnectionError())
-
-    async def _process_loop(self, req_queues):
-        while True:
-            future, req_name, req_data = await self._req_queue.get()
-            if future.done():
-                continue
-
-            try:
-                req_adapter, req_name = _parse_req_name(req_name)
-
-                if req_adapter:
-                    queue = req_queues.get(req_adapter)
-                    if queue is None:
-                        raise Exception("unsupported adapter")
-
-                    queue.put_nowait((future, req_name, req_data))
-                    future = None
-
-                elif req_adapter is None and req_name == 'logout':
-                    return None
-
-                elif req_adapter is None and req_name == 'login':
-                    user = _authenticate(self._users,
-                                         req_data['name'],
-                                         req_data['password'])
-                    if not user:
-                        future.set_exception(Exception("authentication error"))
-                    return None
-
-                else:
-                    raise Exception("unsupported request")
-
-            except Exception as e:
-                future.set_exception(e)
-
-            finally:
-                if future and not future.done():
-                    future.set_result(None)
-
-    def _init_state(self, user, view_name, adapter_states):
-        view = self._views.get(view_name) if view_name else None
-        self._conn.state.set([], {
-            'user': (user['name'] if user else None),
-            'roles': (user['roles'] if user else []),
-            'view': (view.data if view else None),
-            'conf': (view.conf if view else None),
-            'adapters': {adapter: state.data
-                         for adapter, state in adapter_states.items()}})
-
-    def _set_adapter_state(self, adapter_name, data):
-        self._conn.state.set(['adapters', adapter_name], data)
-
-    def _notify(self, adapter_name, name, data):
-        try:
-            self.async_group.spawn(self._conn.notify, f'{adapter_name}/{name}',
-                                   data)
-
-        except Exception:
-            pass
 
 
 def _parse_req_name(name):
@@ -269,34 +354,3 @@ def _authenticate(users, name, password):
         return
 
     return user
-
-
-async def _session_loop(session, req_queue):
-    try:
-        while True:
-            future, req_name, req_data = await req_queue.get()
-            if future.done():
-                continue
-
-            try:
-                result = await session.process_request(req_name, req_data)
-                if not future.done():
-                    future.set_result(result)
-
-            except Exception as e:
-                if not future.done():
-                    future.set_exception(e)
-
-            finally:
-                if not future.done():
-                    future.set_exception(ConnectionError())
-
-    finally:
-        session.close()
-        req_queue.close()
-
-        while not req_queue.empty():
-            future, _, __ = req_queue.get_nowait()
-            if future.done():
-                continue
-            future.set_exception(ConnectionError())

@@ -4,8 +4,7 @@ import tempfile
 
 from hat import json
 from hat.doit import common
-from hat.doit.docs import (build_sphinx,
-                           build_pdoc)
+from hat.doit.docs import build_sphinx
 from hat.doit.py import (build_wheel,
                          run_pytest,
                          run_flake8)
@@ -94,13 +93,9 @@ def task_docs():
                      extensions=['sphinx.ext.graphviz',
                                  'sphinxcontrib.plantuml',
                                  'sphinxcontrib.programoutput'])
-        build_pdoc(module='hat.gui',
-                   dst_dir=build_docs_dir / 'py_api')
 
     return {'actions': [build],
-            'task_dep': ['ui',
-                         'views',
-                         'json_schema_repo']}
+            'task_dep': ['json_schema_repo']}
 
 
 def task_deps():

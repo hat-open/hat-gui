@@ -7,4 +7,4 @@ Content
 .. toctree::
     :maxdepth: 1
 
-    gui
+    server

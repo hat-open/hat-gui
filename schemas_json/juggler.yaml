@@ -1,0 +1,41 @@
+---
+"$schema": "http://json-schema.org/schema#"
+id: "hat-gui://juggler.yaml#"
+definitions:
+    state:
+        type: object
+    request:
+        login:
+            type: object
+            required:
+                - name
+                - password
+            properties:
+                name:
+                    type: string
+                password:
+                    type: string
+        logout:
+            type: "null"
+    notification:
+        init:
+            type: object
+            required:
+                - user
+                - roles
+                - view
+                - conf
+            properties:
+                user:
+                    type:
+                        - string
+                        - "null"
+                roles:
+                    type: array
+                    items:
+                        type: string
+                view:
+                    type:
+                        - object
+                        - "null"
+...
