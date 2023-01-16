@@ -1,3 +1,4 @@
+import type { Renderer } from '@hat-open/renderer';
 import type * as u from '@hat-open/util';
 
 
@@ -8,7 +9,8 @@ export type SendFn = (adapter: string, name: string, data: u.JData) => Promise<u
 export type InitFn = () => Promise<void>;
 export type VtFn = () => u.VNode;
 export type DestroyFn = () => Promise<void>;
-export type NotifyFn = (adapter: string, name: string, data: u.JData) => void;
+export type NotifyFn = (adapter: string, name: string, data: u.JData) => Promise<void>;
+export type DisconnectedFn = () => Promise<void>;
 
 export type Hat = {
     conf: u.JData;
@@ -23,7 +25,17 @@ export type Hat = {
 export type Env = {
     hat: Hat;
     init: InitFn | undefined;
-    vt: VtFn;
+    vt: VtFn | undefined;
     destroy: DestroyFn | undefined;
     onNotify: NotifyFn | undefined;
+    onDisconnected: DisconnectedFn | undefined;
 };
+
+export type Util = typeof u;
+
+declare global {
+    var hat: Hat;
+    var r: Renderer;
+    // TODO export util types
+    var u: Util;
+}

@@ -148,6 +148,13 @@ request for these resources. If view directory contains
 `schema.{yaml|yml|json}`, it is used as JSON schema for validating
 view's configuration.
 
+Views available as part of `hat-gui` package:
+
+    .. toctree::
+       :maxdepth: 1
+
+       views/dummy
+
 .. todo::
 
     future improvements:
@@ -160,35 +167,84 @@ view's configuration.
 Backend - frontend communication
 --------------------------------
 
+Request/response
+''''''''''''''''
+
+Juggler request/response communication is used executing system and adapter
+specific actions:
+
+    * system actions
+
+        Currently supported system actions are ``login`` and ``logout``,
+        defined by ``hat-gui://juggler.yaml#/definitions/request``. All
+        requests return ``null`` on success and raise exception in case of
+        error.
+
+    * adapter specific actions
+
+        Request name is formatted as ``<adapter>/<action>`` where ``<adapter>``
+        is name of adapter instance and ``<action>`` is one of action
+        names supported by referenced adapter instance type. Structure
+        of request data and response results are defined by specific
+        adapter action.
+
+Because AdapterSessions are created only for authenticated users, adapter
+specific actions are available only after successful authentication.
 
 
+Server state
+''''''''''''
+
+Juggler state is used for transfer of AdapterSession states from backend to
+frontend. State is single object where keys represent adapter instance names
+and values contain current associated AdapterSession state. If client
+is not authenticated, this object is empty.
 
 
+Server notifications
+''''''''''''''''''''
+
+Juggler notifications enable backend to notify frontend with system and
+adapter specific notifications:
+
+    * system notifications
+
+        Currently supported system notification is ``init`` defined by
+        ``hat-gui://juggler.yaml#/definitions/notification``. Backend can
+        send this notification at any time, informing frontend of changes
+        that should be applied to frontend execution environment.
+
+    * adapter specific notifications
+
+        Notification name is formatted as ``<adapter>/<notification>`` where
+        ``<adapter>`` is name of adapter instance and ``<notification>`` is
+        notification identification supported by referenced adapter instance
+        type. Structure of notification data is defined by specific
+        adapter notification.
 
 
+Frontend API
+------------
 
+Initially, each instance of client is considered unauthenticated and not
+initialized. Once client receives server's ``init`` notification, it should
+create new execution environment and initialize view defined as part of
+``init`` data.
 
-
-
-
-
-
-
-
-
-
-
-
-
-Once client receives new `state` message, it will evaluate JavaScript code from
+View initialization is based on evaluation of JavaScript code from
 view's `index.js`. This code is evaluated inside environment which contains
-global constant ``hat``. When evaluation is finished, environment should
-contain global values ``init``, ``vt`` and ``destroy``.
+global constant ``hat`` which is also bound to ``window`` object. When
+evaluation is finished, environment should contain global values ``init``,
+``vt``, ``destroy``, ``onNotify`` and ``onDisconnected``.
 
-Client bounds juggler connection's local data to default renderer's
-``['local']`` path and remote data to default renderer's ``['remote']`` path.
-Constant ``hat``, available during execution of `index.js`, references object
-with properties:
+If juggler connection to server is broken, last initialized view remains
+active until new connection is established and new ``init`` notification
+is received. Each time new juggler connection is established, server will
+send new ``init`` notification.
+
+Client bounds juggler connection's server state to default renderer's
+``['remote']`` path. Constant ``hat``, available during execution of
+`index.js`, references object with properties:
 
     * ``conf``
 
@@ -206,198 +262,45 @@ with properties:
 
         view's data
 
-    * ``conn``
+    * `login(name, password)`
 
-        object representing connection with server with properties:
+        login method
 
-            * `onMessage`
+    * `logout()`
 
-                property which references function called each time new
-                `adapter` message is received (callback receives arguments
-                `adapter` and `msg` which reference content of `adapter`
-                message)
+        logout method
 
-            * `login(name, password)`
+    * `send(adapter, name, data)`
 
-                login method
+        method for request/response communication
 
-            * `logout()`
+When evaluation finishes, environment should contain optional functions:
 
-                logout method
+    * ``init()``
 
-            * `send(adapter, msg)`
+        called immediately after evaluation of `index.js` finishes
 
-                method for sending `adapter` messages
+    *  ``vt()``
 
-When evaluation finishes, environment should contain:
+        called each time global renderer's state changes (this function should
+        return virtual tree data)
 
-    * ``init``
+    * ``destroy()``
 
-        optional initialization function/coroutine which is called immediately
-        after evaluation of `index.js` finishes (this function has no input
-        arguments)
+        called prior to evaluation of other view's `index.js`
 
-    *  ``vt``
+    * ``onNotify(adapter, name, data)``
 
-        function called each time global renderer's state changes (this
-        function has no input arguments and it should return virtual tree data)
+        called each time client receives adapter specific notification from
+        server
 
-    * ``destroy``
+    * ``onDisconnected()``
 
-        optional function/coroutine called prior to evaluation of other view's
-        `index.js` (this function has no input arguments)
+        called if juggler connection is broken
 
-Views available as part of `hat-gui` package:
+.. todo::
 
-    .. toctree::
-       :maxdepth: 1
-
-       views/dummy
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Communication between backend and frontend is based on juggler protocol.
-Each connection between server and client (`Session`) has got unique local
-data. Structure of local data on both client and server side is defined
-by JSON schema::
-
-    type: object
-    description: |
-        keys represent adapter names
-    patternProperties:
-        ".+":
-            description: |
-                structure of adapter's local/remote data is defined by
-                adapter type
-
-Supported juggler `MESSAGE` messages sent from client to server are::
-
-    definitions:
-        login:
-            type: object
-            required:
-                - type
-                - name
-                - password
-            properties:
-                type:
-                    const: login
-                name:
-                    type: string
-                password:
-                    type: string
-        logout:
-            type: object
-            required:
-                - type
-            properties:
-                type:
-                    const: logout
-        adapter:
-            type: object
-            required:
-                - type
-                - name
-                - data
-            properties:
-                type:
-                    const: adapter
-                name:
-                    type: string
-                    description: adapter instance name
-                data:
-                    description: |
-                        structure of this property is defined by
-                        adapter type
-
-Supported juggler `MESSAGE` messages sent from server to client are::
-
-    definitions:
-        state:
-            type: object
-            required:
-                - type
-                - reason
-                - user
-                - roles
-                - view
-                - conf
-            properties:
-                type:
-                    const: state
-                reason:
-                    enum:
-                        - init
-                        - login
-                        - logout
-                        - auth_fail
-                user:
-                    type:
-                        - string
-                        - "null"
-                roles:
-                    type: array
-                    items:
-                        type: string
-        adapter:
-            type: object
-            required:
-                - type
-                - name
-                - data
-            properties:
-                type:
-                    const: adapter
-                name:
-                    type: string
-                    description: adapter instance name
-                data:
-                    description: |
-                        structure of this property is defined by
-                        adapter type
-
-When client establishes new juggler connection with server, initial local data
-on server side is ``null``. Immediately after connection is established, server
-sends `state` message with `reason` ``init`` and initial view.
-
-At any time, client can send `login` or `logout` message. Once server receives
-`login` or `logout` message, it should respond with appropriate `state`
-message.
-
-If the authentication using credentials provided in `login` message fails,
-server sends `state` message with `reason` ``auth_fail`` and initial view.
-
-If client successfully authenticates, server will create new `Session` instance
-which is responsible for further communication with client. It sends a `state`
-message with `reason` ``login``, `user` set to username, `roles` containing a
-list of roles for the user, and a view that is associated with the first role.
-
-Session continuously updates server's local data according to
-AdapterSessionClient's local data. It is also responsible for creating adapter
-session and bidirectional forwarding of `adapter` messages between frontend
-client and adapter client.
-
-After a client logs out, server sends `state` message with `reason`
-``logout`` and `user` set to ``null``.
-
-
-
-
+    describe `exports` and resulting environment in case of js modules
 
 
 JSON Schemas
