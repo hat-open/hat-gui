@@ -1,40 +1,45 @@
-@import '../../color';
-@import '../../shadow';
+@import 'color';
+@import 'shadow';
 
-
-html, body, input, textarea, select, button {
-    font-family: 'Roboto';
-}
 
 html, body {
-    font-size: 10pt;
-    margin: 0px;
+    height: 100%;
+    user-select: none;
+    cursor: default;
 }
 
 body {
     display: flex;
-    flex-direction: column;
+    justify-content: center;
     align-items: center;
-}
 
-.login {
-    @include shadow-4dp;
-    margin-top: 100px;
-    background-color: $color-grey-50;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-
-    .grid {
-        margin-bottom: 10px;
-        display: grid;
-        grid-template-columns: auto 150px;
-        grid-gap: 5px 10px;
+    .disconnected, .loading {
+        display: flex;
+        flex-direction: column;
         align-items: center;
     }
 
-    .prompt {
-        margin-bottom: 10px;
-        color: red;
+    .login {
+        @include shadow-4dp;
+        display: grid;
+        grid-template-columns: auto auto;
+        gap: 0.5rem;
+        padding: 1rem;
+        background-color: $color-grey-50;
+
+        .message {
+            grid-column: 1 / 3;
+            border: 0.2rem solid $color-red-200;
+            background-color: white;
+            padding: 0.5rem;
+        }
+
+        label {
+            justify-self: right;
+        }
+
+        button {
+            grid-column-start: 2;
+        }
     }
 }

@@ -8,9 +8,9 @@ allOf:
     required:
         - type
         - log
+        - address
         - adapters
         - views
-        - address
         - initial_view
         - users
     properties:
@@ -22,6 +22,9 @@ allOf:
             description: component version
         log:
             "$ref": "hat-json://logging.yaml#"
+        address:
+            type: string
+            default: "http://127.0.0.1:23023"
         adapters:
             type: array
             items:
@@ -30,9 +33,6 @@ allOf:
             type: array
             items:
                 "$ref": "hat-gui://main.yaml#/definitions/view"
-        address:
-            type: string
-            default: "http://localhost:23023"
         initial_view:
             type:
                 - string
@@ -99,9 +99,6 @@ definitions:
               - type: object
                 required:
                     - conf
-                properties:
-                    conf:
-                        type: string
     user:
         type: object
         required:

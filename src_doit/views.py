@@ -15,6 +15,10 @@ src_js_dir = Path('src_js')
 src_static_dir = Path('src_static')
 node_modules_dir = Path('node_modules')
 
+views_src_dir = src_js_dir / 'views'
+views_dst_dir = src_py_dir / 'hat/gui/views'
+views_static_dir = src_static_dir / 'views'
+
 
 def task_views():
     """Build views"""
@@ -28,19 +32,20 @@ def task_views_login():
 
 
 def _get_task_view(name):
-    src_path = src_js_dir / f'views/{name}/main.js'
-    dst_dir = src_py_dir / f'hat/gui/views/{name}'
-    static_dir = src_static_dir / f'views/{name}'
+    src_path = views_src_dir / f'{name}/main.ts'
+    dst_dir = views_dst_dir / name
+    static_dir = views_static_dir / name
     action = functools.partial(_build_view, src_path, dst_dir, static_dir)
     return {'actions': [action],
             'pos_arg': 'args',
-            'task_dep': ['deps']}
+            'task_dep': ['node_modules']}
 
 
 def _build_view(src_path, dst_dir, static_dir, args):
     args = args or []
     common.rm_rf(dst_dir)
     common.cp_r(static_dir, dst_dir)
+
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         config_path = tmpdir / 'webpack.config.js'
@@ -77,8 +82,18 @@ module.exports = {{
                         options: {{sourceMap: true}}
                     }}
                 ]
+            }},
+            {{
+                test: /\.ts$/,
+                use: 'ts-loader'
             }}
         ]
+    }},
+    resolve: {{
+        extensions: ['.ts', '.js']
+    }},
+    externals: {{
+        '@hat-open/util': 'u'
     }},
     watchOptions: {{
         ignored: /node_modules/

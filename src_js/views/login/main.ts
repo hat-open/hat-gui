@@ -1,7 +1,7 @@
 // TODO import type shadows global u
 import * as u from '@hat-open/util';
 
-import '../../api';
+import type * as _ from '../../api';
 
 import '../../../src_scss/views/login/main.scss';
 
@@ -38,14 +38,15 @@ export function vt() {
     if (!state)
         return ['div.login'];
 
-    if (state.loading)
-        return ['div.loading',
-            'Loading'
-        ];
-
     if (state.disconnected)
         return ['div.disconnected',
-            'Disconnected'
+            ['div', 'Disconnected'],
+            ['div', 'Trying to reconnect...']
+        ];
+
+    if (state.loading)
+        return ['div.loading',
+            ['div', 'Loading...']
         ];
 
     return ['div.login', {
@@ -58,8 +59,14 @@ export function vt() {
         (state.message == null ? [] : ['div.message',
             state.message
         ]),
-        inputVt('text', 'Name', state.name, r.set(['view', 'name']) as any),
-        inputVt('password', 'Password', state.password, r.set(['view', 'password']) as any),
+        inputVt(
+            'text', 'Name', state.name,
+            value => r.set(['view', 'name'], value)
+        ),
+        inputVt(
+            'password', 'Password', state.password,
+            value => r.set(['view', 'password'], value)
+        ),
         ['button', {
             on: {
                 click: login
@@ -81,7 +88,9 @@ function inputVt(
                 value: value
             },
             on: {
-                change: (evt: Event) => changeCb((evt.target as HTMLInputElement).value)
+                change: (evt: Event) => {
+                    changeCb((evt.target as HTMLInputElement).value);
+                }
             }
         }]
     ];

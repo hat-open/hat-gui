@@ -1,25 +1,29 @@
+from .views import *  # NOQA
+
 from pathlib import Path
 import subprocess
 import tempfile
 
 from hat import json
 from hat.doit import common
-from hat.doit.docs import build_sphinx
+from hat.doit.docs import (build_sphinx,
+                           build_pdoc)
+from hat.doit.js import (ESLintConf,
+                         run_eslint)
 from hat.doit.py import (build_wheel,
                          run_pytest,
                          run_flake8)
 
-from .views import *  # NOQA
 from . import views
 
 
 __all__ = ['task_clean_all',
+           'task_node_modules',
            'task_build',
            'task_check',
            'task_test',
            'task_docs',
            'task_ui',
-           'task_deps',
            'task_json_schema_repo',
            *views.__all__]
 
@@ -49,6 +53,11 @@ def task_clean_all():
                                         json_schema_repo_path])]}
 
 
+def task_node_modules():
+    """Install node_modules"""
+    return {'actions': ['yarn install --silent']}
+
+
 def task_build():
     """Build"""
 
@@ -60,8 +69,7 @@ def task_build():
             description='Hat GUI',
             url='https://github.com/hat-open/hat-gui',
             license=common.License.APACHE2,
-            console_scripts=['hat-gui = hat.gui.main:main'],
-            zip_safe=False)
+            console_scripts=['hat-gui = hat.gui.main:main'])
 
     return {'actions': [build],
             'task_dep': ['ui',
@@ -72,7 +80,9 @@ def task_build():
 def task_check():
     """Check with flake8"""
     return {'actions': [(run_flake8, [src_py_dir]),
-                        (run_flake8, [pytest_dir])]}
+                        (run_flake8, [pytest_dir]),
+                        (run_eslint, [src_js_dir, ESLintConf.TS])],
+            'task_dep': ['node_modules']}
 
 
 def task_test():
@@ -93,14 +103,11 @@ def task_docs():
                      extensions=['sphinx.ext.graphviz',
                                  'sphinxcontrib.plantuml',
                                  'sphinxcontrib.programoutput'])
+        build_pdoc(module='hat.gui',
+                   dst_dir=build_docs_dir / 'py_api')
 
     return {'actions': [build],
             'task_dep': ['json_schema_repo']}
-
-
-def task_deps():
-    """Install dependencies"""
-    return {'actions': ['yarn install --silent']}
 
 
 def task_ui():
@@ -110,11 +117,12 @@ def task_ui():
         args = args or []
         common.rm_rf(ui_dir)
         common.cp_r(src_static_dir / 'ui', ui_dir)
+
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
             config_path = tmpdir / 'webpack.config.js'
             config_path.write_text(_webpack_conf.format(
-                src_path=(src_js_dir / 'main.js').resolve(),
+                src_path=(src_js_dir / 'main.ts').resolve(),
                 dst_dir=ui_dir.resolve()))
             subprocess.run([str(node_modules_dir / '.bin/webpack'),
                             '--config', str(config_path),
@@ -123,7 +131,7 @@ def task_ui():
 
     return {'actions': [build],
             'pos_arg': 'args',
-            'task_dep': ['deps']}
+            'task_dep': ['node_modules']}
 
 
 def task_json_schema_repo():
@@ -163,8 +171,15 @@ module.exports = {{
                         options: {{sourceMap: true}}
                     }}
                 ]
+            }},
+            {{
+                test: /\.ts$/,
+                use: 'ts-loader'
             }}
         ]
+    }},
+    resolve: {{
+        extensions: ['.ts', '.js']
     }},
     watchOptions: {{
         ignored: /node_modules/

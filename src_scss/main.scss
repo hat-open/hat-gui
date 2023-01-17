@@ -1,8 +1,17 @@
-@import 'fonts/roboto';
 @import 'fonts/fontawesome';
+@import 'fonts/inter';
+@import 'fonts/robotomono';
 
+
+html, body, button, input, select {
+    font-family: 'Inter';
+}
+
+pre {
+    font-family: 'RobotoMono';
+}
 
 html, body {
-    margin: 0px;
-    font-family: 'Roboto';
+    margin: 0;
 }
+

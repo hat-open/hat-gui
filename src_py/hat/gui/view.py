@@ -60,7 +60,7 @@ class ViewManager(aio.Resource):
                 self._executor, json.decode_file, Path(conf['conf_path']))
 
         elif 'conf' in conf:
-            view_conf = conf['view_conf']
+            view_conf = conf['conf']
 
         else:
             raise ValueError('unknown view conf')

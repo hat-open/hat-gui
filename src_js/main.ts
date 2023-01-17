@@ -2,7 +2,9 @@ import r from '@hat-open/renderer';
 import * as u from '@hat-open/util';
 import * as juggler from '@hat-open/juggler';
 
-import * as api from './api';
+import type * as api from './api';
+
+import '../src_scss/main.scss';
 
 
 type InitMsg = {
@@ -13,11 +15,16 @@ type InitMsg = {
 };
 
 
+const defaultStyleElements = new Set<HTMLStyleElement>();
 let app: juggler.Application;
 let env: api.Env | null = null;
 
 
 function main() {
+    document.head.querySelectorAll('style').forEach(el =>
+        defaultStyleElements.add(el)
+    );
+
     const root = document.body.appendChild(document.createElement('div'));
     r.init(root, null, vt);
     app = new juggler.Application('remote');
@@ -42,7 +49,6 @@ function main() {
         eventLoop();
     });
 
-    const notifications: juggler.Notification[] = [];
     app.addEventListener('notify', (evt: Event) => {
         events.push((evt as juggler.NotifyEvent).detail);
         if (events.length > 1)
@@ -86,9 +92,10 @@ async function initView(msg: InitMsg) {
     if (env) {
         if (env.destroy)
             await env.destroy();
-        document.head.querySelectorAll('style').forEach(node =>
-            node.parentNode?.removeChild(node)
-        );
+        document.head.querySelectorAll('style').forEach(el => {
+            if (!defaultStyleElements.has(el))
+                el.parentNode?.removeChild(el);
+        });
         env = null;
     }
 
@@ -122,6 +129,8 @@ async function initView(msg: InitMsg) {
 
     if (env && env.init)
         await env.init();
+
+    r.render();
 }
 
 

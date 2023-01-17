@@ -188,7 +188,7 @@ class _Client(aio.Resource):
                            user['name'])
                 await self._init_state(user, user['view'], sessions)
 
-                return await self._process_loop(session)
+                return await self._process_loop(sessions)
 
     async def _process_loop(self, sessions):
         while True:
@@ -225,10 +225,11 @@ class _Client(aio.Resource):
                     if not user:
                         mlog.debug("authentication error")
                         future.set_exception(Exception("authentication error"))
+                        return None
 
                     mlog.debug("authentication success (user %s)",
                                user['name'])
-                    return None
+                    return user
 
                 else:
                     mlog.debug("unsupported request")
@@ -242,7 +243,11 @@ class _Client(aio.Resource):
                     future.set_result(None)
 
     async def _init_state(self, user, view_name, sessions):
-        view = self._views.get(view_name) if view_name else None
+        if view_name:
+            view = await self._views.get(view_name)
+
+        else:
+            view = None
 
         self._conn.state.set([], {name: session.state.data
                                   for name, session in sessions.items()})

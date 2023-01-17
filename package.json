@@ -1,7 +1,7 @@
 {
   "private": true,
   "devDependencies": {
-    "@hat-open/juggler": "^0.6.5",
+    "@hat-open/juggler": "^0.6.8",
     "@hat-open/renderer": "^0.6.3",
     "@hat-open/util": "^0.6.7",
     "@typescript-eslint/eslint-plugin": "^5.47.0",
