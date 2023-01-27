@@ -5,6 +5,9 @@ import type * as u from '@hat-open/util';
 export type LoginFn = (name: string, password: string) => Promise<void>;
 export type LogoutFn = () => Promise<void>;
 export type SendFn = (adapter: string, name: string, data: u.JData) => Promise<u.JData>;
+export type GetServerAddressesFn = () => string[];
+export type SetServerAddressesFn = (addresses: string[]) => void;
+export type DisconnectFn = () => void;
 
 export type InitFn = () => Promise<void>;
 export type VtFn = () => u.VNode;
@@ -20,6 +23,9 @@ export type Hat = {
     login: LoginFn;
     logout: LogoutFn;
     send: SendFn;
+    getServerAddresses: GetServerAddressesFn;
+    setServerAddresses: SetServerAddressesFn;
+    disconnect: DisconnectFn;
 };
 
 export type Env = {

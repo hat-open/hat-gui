@@ -274,6 +274,18 @@ Client bounds juggler connection's server state to default renderer's
 
         method for request/response communication
 
+    * `getServerAddresses()`
+
+        get GUI server juggler addresses
+
+    * `setServerAddresses(addresses)`
+
+        set GUI server juggler addresses
+
+    * `disconnect()`
+
+        close current juggler connection to GUI server
+
 When evaluation finishes, environment should contain optional functions:
 
     * ``init()``

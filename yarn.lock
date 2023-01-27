@@ -22,10 +22,10 @@
     minimatch "^3.1.2"
     strip-json-comments "^3.1.1"
 
-"@hat-open/juggler@^0.6.8":
-  version "0.6.8"
-  resolved "https://registry.yarnpkg.com/@hat-open/juggler/-/juggler-0.6.8.tgz#0bcb12dcaf6504ba10cea1c4f5dda0d88ca684b8"
-  integrity sha512-1XHQCDgIEzmOLjE0nXNkvtIAw7HgDVAQfEkTTmK5StMpvzeWHUXe9xv4n91vFrLDTowdIoNVM6/qi99LEvHEUQ==
+"@hat-open/juggler@^0.6.9":
+  version "0.6.9"
+  resolved "https://registry.yarnpkg.com/@hat-open/juggler/-/juggler-0.6.9.tgz#06b6dfb32692b384e0a7befdd21c8b489bdb9695"
+  integrity sha512-cgzNFB3SObJygadvoa59IW3m2bhEjZwwUsh57KPKTTzSVUAamzIspBetJjEDFhsWh5RKh31M8kxb3V9rJll6Rw==
   dependencies:
     "@hat-open/renderer" "^0.6.3"
     "@hat-open/util" "^0.6.7"

@@ -118,6 +118,9 @@ async function initView(msg: InitMsg) {
         login: login,
         logout: logout,
         send: send,
+        getServerAddresses: getServerAddresses,
+        setServerAddresses: setServerAddresses,
+        disconnect: disconnect
     };
     (window as any).hat = hat;
     if (globalThis)
@@ -146,6 +149,21 @@ async function logout() {
 
 async function send(adapter: string, name: string, data: u.JData): Promise<u.JData> {
     return await app.send(`${adapter}/${name}`, data);
+}
+
+
+function getServerAddresses(): string[] {
+    return app.addresses;
+}
+
+
+function setServerAddresses(addresses: string[]) {
+    app.setAddresses(addresses);
+}
+
+
+function disconnect() {
+    app.disconnect();
 }
 
 
