@@ -102,7 +102,7 @@ Adapters available as part of `hat-gui` package:
     .. toctree::
        :maxdepth: 1
 
-       adapters/dummy
+       adapters/latest
 
 
 Views
@@ -153,7 +153,7 @@ Views available as part of `hat-gui` package:
     .. toctree::
        :maxdepth: 1
 
-       views/dummy
+       views/login
 
 .. todo::
 

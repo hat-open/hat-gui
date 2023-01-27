@@ -8,9 +8,10 @@ import base64
 import collections
 
 from hat import aio
-from hat import util
-from hat.gui import common
+from hat import json
 import hat.event.common
+
+from hat.gui import common
 
 
 json_schema_id = 'hat-gui://adapters/latest.yaml#'
@@ -26,7 +27,6 @@ async def create_adapter(conf, client):
     adapter = LatestAdapter()
     adapter._authorized_roles = set(conf['authorized_roles'])
     adapter._client = client
-    adapter._change_cbs = util.CallbackRegistry()
 
     adapter._event_type_keys = {}
     for item in conf['items']:
@@ -39,9 +39,11 @@ async def create_adapter(conf, client):
         events = await client.query(hat.event.common.QueryData(
             event_types=[i for i in adapter._event_type_keys],
             unique_type=True))
-        adapter._data = dict(adapter._events_to_data(events))
+
     else:
-        adapter._data = {}
+        events = []
+
+    adapter._state = json.Storage(dict(adapter._events_to_data(events)))
 
     adapter._async_group = aio.Group()
     adapter._async_group.spawn(adapter._run)
@@ -54,10 +56,22 @@ class LatestAdapter(common.Adapter):
     def async_group(self):
         return self._async_group
 
-    async def create_session(self, client):
-        roles = set(client.roles)
+    async def create_session(self, user, roles, state, notify_cb):
+        session = LatestSession()
+        session._async_group = self.async_group.create_subgroup()
+
+        roles = set(roles)
         is_authorized = not roles.isdisjoint(self._authorized_roles)
-        return LatestSession(is_authorized, self, client)
+
+        if is_authorized:
+            handle = self._state.register_change_cb(state.set)
+            session.async_group.spawn(aio.call_on_cancel, handle.cancel)
+            state.set(self._state.data)
+
+        else:
+            state.set({})
+
+        return session
 
     async def _run(self):
         try:
@@ -67,8 +81,7 @@ class LatestAdapter(common.Adapter):
                 if not data:
                     continue
 
-                self._data = {**self._data, **data}
-                self._change_cbs.notify()
+                self._state.set({**self._state.data, **data})
 
         finally:
             self.close()
@@ -81,34 +94,12 @@ class LatestAdapter(common.Adapter):
 
 class LatestSession(common.AdapterSession):
 
-    def __init__(self, is_authorized, adapter, client):
-        self._is_authorized = is_authorized
-        self._adapter = adapter
-        self._client = client
-        self._async_group = adapter.async_group.create_subgroup()
-        self._async_group.spawn(self._run)
-
     @property
     def async_group(self):
         return self._async_group
 
-    async def _run(self):
-        try:
-            if self._is_authorized:
-                with self._adapter._change_cbs.register(self._on_change):
-                    self._on_change()
-                    while True:
-                        await self._client.receive()
-
-            else:
-                while True:
-                    await self._client.receive()
-
-        finally:
-            self.close()
-
-    def _on_change(self):
-        self._client.set_local_data(self._adapter._data)
+    async def process_request(self, name, data):
+        raise Exception('not supported')
 
 
 def _event_to_data(event):

@@ -1,2 +1,2 @@
-Dummy view
+Login view
 ==========

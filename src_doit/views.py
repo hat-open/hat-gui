@@ -93,7 +93,7 @@ module.exports = {{
         extensions: ['.ts', '.js']
     }},
     externals: {{
-        '@hat-open/util': 'u'
+        '@hat-open/util': 'window u'
     }},
     watchOptions: {{
         ignored: /node_modules/

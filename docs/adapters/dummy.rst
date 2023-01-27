@@ -1,2 +1,2 @@
-Dummy adapter
-=============
+Latest adapter
+==============

@@ -36,6 +36,11 @@ body {
 
         label {
             justify-self: right;
+
+            &.input {
+                justify-self: left;
+                grid-column-start: 2;
+            }
         }
 
         button {
