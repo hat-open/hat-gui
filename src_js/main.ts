@@ -18,6 +18,7 @@ type InitMsg = {
 const defaultStyleElements = new Set<HTMLStyleElement>();
 let app: juggler.Application;
 let env: api.Env | null = null;
+let logoutAction: api.LogoutAction | null = null;
 
 
 function main() {
@@ -120,7 +121,8 @@ async function initView(msg: InitMsg) {
         send: send,
         getServerAddresses: getServerAddresses,
         setServerAddresses: setServerAddresses,
-        disconnect: disconnect
+        disconnect: disconnect,
+        setLogoutAction: setLogoutAction
     };
     (window as any).hat = hat;
     if (globalThis)
@@ -144,6 +146,9 @@ async function login(name: string, password: string) {
 
 async function logout() {
     await app.send('logout', null);
+
+    if (logoutAction)
+        await logoutAction(env ? env.hat.user : null);
 }
 
 
@@ -164,6 +169,11 @@ function setServerAddresses(addresses: string[]) {
 
 function disconnect() {
     app.disconnect();
+}
+
+
+function setLogoutAction(action: api.LogoutAction | null) {
+    logoutAction = action;
 }
 
 

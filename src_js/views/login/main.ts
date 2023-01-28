@@ -29,7 +29,6 @@ const defaultState: State = {
     disconnected: false
 };
 
-// TODO other views should clear local storage before calling logout
 const localStorageKey = 'hat_builtin_login';
 
 
@@ -42,6 +41,10 @@ export async function init() {
             u.set('password', localStorageData.password)
         )(defaultState)
     );
+
+    hat.setLogoutAction(async () => {
+        saveLocalStorageData(null);
+    });
 
     await r.set('view', state);
 
