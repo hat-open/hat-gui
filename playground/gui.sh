@@ -5,12 +5,7 @@
 LOG_LEVEL=DEBUG
 CONF_PATH=$DATA_PATH/gui.yaml
 
-PASSWORD=pass1
-PASSWORD_HASH=$($PYTHON << EOF
-import hashlib
-print(hashlib.sha256(hashlib.sha256(b"$PASSWORD").digest()).digest().hex())
-EOF
-)
+PASSWORD="$($PYTHON -m hat.gui.passwd pass1)"
 
 cat > $CONF_PATH << EOF
 type: gui
@@ -40,9 +35,7 @@ views:
 initial_view: login
 users:
   - name: user1
-    password:
-        hash: '$PASSWORD_HASH'
-        salt: ''
+    password: $PASSWORD
     roles: []
     view: null
 event_server_address: "tcp+sbs://127.0.0.1:23012"

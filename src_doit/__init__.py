@@ -69,7 +69,8 @@ def task_build():
             description='Hat GUI',
             url='https://github.com/hat-open/hat-gui',
             license=common.License.APACHE2,
-            console_scripts=['hat-gui = hat.gui.main:main'])
+            console_scripts=['hat-gui = hat.gui.main:main',
+                             'hat-gui-passwd = hat.gui.passwd:main'])
 
     return {'actions': [build],
             'task_dep': ['ui',
