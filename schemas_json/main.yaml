@@ -110,21 +110,7 @@ definitions:
             name:
                 type: string
             password:
-                type: object
-                required:
-                    - hash
-                    - salt
-                properties:
-                    hash:
-                        type: string
-                        description: |
-                            SHA256(salt + SHA256(password)) hash encoded as
-                            hex string
-                    salt:
-                        type: string
-                        decription: |
-                            unique salt used for generating hash encoded as
-                            hex string
+                "$ref": "hat-gui://main.yaml#/definitions/password"
             roles:
                 type: array
                 items:
@@ -133,4 +119,18 @@ definitions:
                 type:
                     - string
                     - "null"
+    password:
+        type: object
+        required:
+            - hash
+            - salt
+        properties:
+            hash:
+                type: string
+                description: |
+                    SHA256(salt + SHA256(password)) hash encoded as hex string
+            salt:
+                type: string
+                decription: |
+                    unique salt used for generating hash encoded as hex string
 ...

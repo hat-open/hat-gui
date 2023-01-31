@@ -1,3 +1,5 @@
+"""Hat GUI password conf util"""
+
 import argparse
 import hashlib
 import secrets
@@ -8,6 +10,7 @@ from hat import json
 
 
 def create_argument_parser() -> argparse.ArgumentParser:
+    """Create argument parser"""
     parser = argparse.ArgumentParser()
     parser.add_argument('--salt', metavar='SALT', default=None)
     parser.add_argument('password', nargs='?', default=None)
@@ -15,6 +18,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
 
 
 def main():
+    """Main"""
     parser = create_argument_parser()
     args = parser.parse_args()
 
@@ -27,6 +31,11 @@ def main():
 def generate(password: str,
              salt: typing.Optional[str]
              ) -> json.Data:
+    """Generate password conf
+
+    Result is defined by ``hat-gui://main.yaml#/definitions/password``
+
+    """
     salt_bytes = salt.encode('utf-8') if salt else secrets.token_bytes(32)
     password_bytes = password.encode('utf-8')
     password_sha256 = hashlib.sha256(password_bytes).digest()

@@ -22,7 +22,7 @@ async def create_view_manager(conf: json.Data
     manager = ViewManager()
     manager._view_confs = {view_conf['name']: view_conf
                            for view_conf in conf['views']}
-    manager._async_group = aio.Group()
+    manager._async_group = aio.Group(log_exceptions=False)
     manager._executor = aio.create_executor()
     return manager
 
@@ -70,7 +70,7 @@ class ViewManager(aio.Resource):
                   view_data.get('schema.yml'))
         if schema:
             repo = json.SchemaRepository(schema)
-            repo.validate(schema['id'], conf)
+            repo.validate(schema['id'], view_conf)
 
         return View(name=name,
                     conf=view_conf,

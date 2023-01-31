@@ -3,6 +3,7 @@ import base64
 import pytest
 
 from hat import json
+
 import hat.gui.view
 
 
@@ -49,12 +50,12 @@ async def test_view_data(tmp_path, files, data):
     name = 'name'
     conf = {'views': [{'name': name,
                        'view_path': str(tmp_path),
-                       'conf_path': None}]}
+                       'conf': 123}]}
     manager = await hat.gui.view.create_view_manager(conf)
 
     view = await manager.get(name)
     assert view.name == name
-    assert view.conf is None
+    assert view.conf == 123
     assert view.data == {}
 
     for file_name, file_content in files.items():
@@ -65,7 +66,7 @@ async def test_view_data(tmp_path, files, data):
 
     view = await manager.get(name)
     assert view.name == name
-    assert view.conf is None
+    assert view.conf == 123
     assert view.data == data
 
     await manager.async_close()
@@ -78,7 +79,7 @@ async def test_invalid_view_path():
     name = 'name'
     conf = {'views': [{'name': name,
                        'view_path': None,
-                       'conf_path': None}]}
+                       'conf': None}]}
     manager = await hat.gui.view.create_view_manager(conf)
 
     with pytest.raises(Exception):
@@ -121,5 +122,20 @@ async def test_validate_conf(tmp_path):
     assert view.conf == data
     assert view.data == {conf_path.name: data,
                          schema_path.name: schema}
+
+    await manager.async_close()
+
+
+async def test_builtin_view():
+    name = 'name'
+    conf = {'views': [{'name': name,
+                       'builtin': 'login',
+                       'conf': None}]}
+    manager = await hat.gui.view.create_view_manager(conf)
+
+    view = await manager.get(name)
+    assert view.name == name
+    assert view.conf is None
+    assert 'index.js' in view.data
 
     await manager.async_close()
