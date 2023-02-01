@@ -29,7 +29,7 @@ def main():
 
 
 def generate(password: str,
-             salt: typing.Optional[str]
+             salt: typing.Optional[str] = None
              ) -> json.Data:
     """Generate password conf
 

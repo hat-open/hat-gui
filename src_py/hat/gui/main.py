@@ -26,6 +26,9 @@ import hat.gui.server
 import hat.gui.view
 
 
+mlog: logging.Logger = logging.getLogger('hat.gui.main')
+"""Module logger"""
+
 user_conf_dir: Path = Path(appdirs.user_config_dir('hat'))
 """User configuration directory path"""
 

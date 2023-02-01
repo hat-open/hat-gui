@@ -6,6 +6,7 @@ This adapter provides latest event for each configured event type.
 
 import base64
 import collections
+import functools
 
 from hat import aio
 from hat import json
@@ -27,6 +28,7 @@ async def create_adapter(conf, client):
     adapter = LatestAdapter()
     adapter._authorized_roles = set(conf['authorized_roles'])
     adapter._client = client
+    adapter._async_group = aio.Group()
 
     adapter._event_type_keys = {}
     for item in conf['items']:
@@ -45,8 +47,6 @@ async def create_adapter(conf, client):
 
     adapter._state = json.Storage(dict(adapter._events_to_data(events)))
 
-    adapter._async_group = aio.Group()
-    adapter._async_group.spawn(adapter._run)
     return adapter
 
 
@@ -56,6 +56,13 @@ class LatestAdapter(common.Adapter):
     def async_group(self):
         return self._async_group
 
+    async def process_events(self, events):
+        data = dict(self._events_to_data(events))
+        if not data:
+            return
+
+        self._state.set([], {**self._state.data, **data})
+
     async def create_session(self, user, roles, state, notify_cb):
         session = LatestSession()
         session._async_group = self.async_group.create_subgroup()
@@ -64,27 +71,15 @@ class LatestAdapter(common.Adapter):
         is_authorized = not roles.isdisjoint(self._authorized_roles)
 
         if is_authorized:
-            handle = self._state.register_change_cb(state.set)
+            change_cb = functools.partial(state.set, [])
+            handle = self._state.register_change_cb(change_cb)
             session.async_group.spawn(aio.call_on_cancel, handle.cancel)
-            state.set(self._state.data)
+            change_cb(self._state.data)
 
         else:
-            state.set({})
+            state.set([], {})
 
         return session
-
-    async def _run(self):
-        try:
-            while True:
-                events = await self._client.receive()
-                data = dict(self._events_to_data(events))
-                if not data:
-                    continue
-
-                self._state.set({**self._state.data, **data})
-
-        finally:
-            self.close()
 
     def _events_to_data(self, events):
         for event in events:

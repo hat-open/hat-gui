@@ -1,13 +1,14 @@
 import asyncio
-import hashlib
 
 import pytest
 
 from hat import aio
 from hat import juggler
 from hat import util
-from hat.gui import common
 import hat.event.common
+
+from hat.gui import common
+import hat.gui.passwd
 import hat.gui.server
 
 
@@ -31,16 +32,6 @@ def patch_autoflush_delay(monkeypatch):
     monkeypatch.setattr(hat.gui.server, 'autoflush_delay', 0)
 
 
-def get_password_conf(password, salt):
-    password = password.encode()
-    salt = salt.encode()
-    h = hashlib.sha256()
-    h.update(salt)
-    h.update(hashlib.sha256(password).digest())
-    return {'hash': h.hexdigest(),
-            'salt': salt.hex()}
-
-
 class Adapter(common.Adapter):
 
     def __init__(self):
@@ -55,25 +46,52 @@ class Adapter(common.Adapter):
     def session_queue(self):
         return self._session_queue
 
-    async def create_session(self, client):
-        session = Session(client)
+    async def create_session(self, user, roles, state, notify_cb):
+        session = Session(user, roles, state, notify_cb)
         self._session_queue.put_nowait(session)
         return session
+
+    async def process_events(self, events):
+        raise NotImplementedError()
 
 
 class Session(aio.Resource):
 
-    def __init__(self, client):
-        self._client = client
+    def __init__(self, user, roles, state, notify_cb):
+        self._user = user
+        self._roles = roles
+        self._state = state
+        self._notify_cb = notify_cb
         self._async_group = aio.Group()
+        self._request_queue = aio.Queue()
 
     @property
     def async_group(self):
         return self._async_group
 
     @property
-    def client(self):
-        return self._client
+    def user(self):
+        return self._user
+
+    @property
+    def roles(self):
+        return self._roles
+
+    @property
+    def state(self):
+        return self._state
+
+    @property
+    def request_queue(self):
+        return self._request_queue
+
+    def notify(self, name, data):
+        self._notify_cb(name, data)
+
+    async def process_request(self, name, data):
+        future = asyncio.Future()
+        self._request_queue.put_nowait((name, data, future))
+        return await future
 
 
 class ViewManager(aio.Resource):
@@ -90,6 +108,13 @@ class ViewManager(aio.Resource):
         return self._views[name]
 
 
+def create_user_conf(name, password, roles=[], view=None):
+    return {'name': name,
+            'password': hat.gui.passwd.generate(password),
+            'roles': roles,
+            'view': view}
+
+
 async def test_empty_server(ui_addr, ws_addr):
     conf = {'address': ui_addr,
             'initial_view': None,
@@ -97,7 +122,7 @@ async def test_empty_server(ui_addr, ws_addr):
     adapters = {}
     views = ViewManager({})
     server = await hat.gui.server.create_server(conf, adapters, views)
-    client = await juggler.connect(ws_addr, autoflush_delay=0)
+    client = await juggler.connect(ws_addr)
 
     assert client.is_open
     assert server.is_open
@@ -110,92 +135,79 @@ async def test_empty_server(ui_addr, ws_addr):
 async def test_login(ui_addr, ws_addr):
     conf = {'address': ui_addr,
             'initial_view': None,
-            'users': [{'name': 'user',
-                       'password': get_password_conf('pass', 'salt'),
-                       'roles': ['a', 'b'],
-                       'view': None}]}
+            'users': [create_user_conf(name='user',
+                                       password='pass',
+                                       roles=['a', 'b'])]}
     adapters = {}
     views = ViewManager({})
+    notify_queue = aio.Queue()
     server = await hat.gui.server.create_server(conf, adapters, views)
-    client = await juggler.connect(ws_addr, autoflush_delay=0)
+    client = await juggler.connect(
+        ws_addr,
+        lambda client, name, data: notify_queue.put_nowait((name, data)))
 
-    state = await client.receive()
-    assert state == {'type': 'state',
-                     'reason': 'init',
-                     'user': None,
-                     'roles': [],
-                     'view': None,
-                     'conf': None}
+    name, data = await notify_queue.get()
+    assert name == 'init'
+    assert data == {'user': None,
+                    'roles': [],
+                    'view': None,
+                    'conf': None}
 
-    await client.send({'type': 'login',
-                       'name': 'abc',
-                       'password': 'bca'})
+    with pytest.raises(Exception):
+        await client.send('login', {'name': 'abc',
+                                    'password': 'bca'})
 
-    state = await client.receive()
-    assert state == {'type': 'state',
-                     'reason': 'auth_fail',
-                     'user': None,
-                     'roles': [],
-                     'view': None,
-                     'conf': None}
+    with pytest.raises(Exception):
+        await client.send('login', {'name': 'user',
+                                    'password': 'abc'})
 
-    await client.send({'type': 'login',
-                       'name': 'user',
-                       'password': 'pass'})
-    state = await client.receive()
-    assert state == {'type': 'state',
-                     'reason': 'login',
-                     'user': 'user',
-                     'roles': ['a', 'b'],
-                     'view': None,
-                     'conf': None}
+    assert notify_queue.empty()
 
-    await client.send({'type': 'logout'})
-    state = await client.receive()
-    assert state == {'type': 'state',
-                     'reason': 'logout',
-                     'user': None,
-                     'roles': [],
-                     'view': None,
-                     'conf': None}
+    await client.send('login', {'name': 'user',
+                                'password': 'pass'})
+
+    name, data = await notify_queue.get()
+    assert name == 'init'
+    assert data == {'user': 'user',
+                    'roles': ['a', 'b'],
+                    'view': None,
+                    'conf': None}
+
+    await client.send('logout', None)
+
+    name, data = await notify_queue.get()
+    assert name == 'init'
+    assert data == {'user': None,
+                    'roles': [],
+                    'view': None,
+                    'conf': None}
 
     await client.async_close()
     await server.async_close()
     await views.async_close()
 
 
-async def test_adapter_session(ui_addr, ws_addr):
+async def test_session(ui_addr, ws_addr):
     conf = {'address': ui_addr,
             'initial_view': None,
-            'users': [{'name': 'user',
-                       'password': get_password_conf('pass', 'salt'),
-                       'roles': [],
-                       'view': None}]}
+            'users': [create_user_conf(name='user',
+                                       password='pass',
+                                       roles=['a', 'b'])]}
     adapter = Adapter()
     adapters = {'adapter': adapter}
     views = ViewManager({})
     server = await hat.gui.server.create_server(conf, adapters, views)
-    client = await juggler.connect(ws_addr, autoflush_delay=0)
+    client = await juggler.connect(ws_addr)
 
-    state = await client.receive()
-    assert state['reason'] == 'init'
-
-    with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(adapter.session_queue.get(), 0.001)
-
-    await client.send({'type': 'login',
-                       'name': 'user',
-                       'password': 'pass'})
-    state = await client.receive()
-    assert state['reason'] == 'login'
-
+    await client.send('login', {'name': 'user',
+                                'password': 'pass'})
     session = await adapter.session_queue.get()
 
     assert session.is_open
+    assert session.user == 'user'
+    assert session.roles == ['a', 'b']
 
-    await client.send({'type': 'logout'})
-    state = await client.receive()
-    assert state['reason'] == 'logout'
+    await client.send('logout', None)
 
     assert not session.is_open
 
@@ -204,87 +216,110 @@ async def test_adapter_session(ui_addr, ws_addr):
     await views.async_close()
 
 
-async def test_adapter_send_receive(ui_addr, ws_addr):
+async def test_request_response(ui_addr, ws_addr):
     conf = {'address': ui_addr,
             'initial_view': None,
-            'users': [{'name': 'user',
-                       'password': get_password_conf('pass', 'salt'),
-                       'roles': [],
-                       'view': None}]}
+            'users': [create_user_conf(name='user',
+                                       password='pass')]}
     adapter = Adapter()
     adapters = {'adapter': adapter}
     views = ViewManager({})
     server = await hat.gui.server.create_server(conf, adapters, views)
-    client = await juggler.connect(ws_addr, autoflush_delay=0)
-    await client.receive()
-    await client.send({'type': 'login',
-                       'name': 'user',
-                       'password': 'pass'})
-    await client.receive()
+    client = await juggler.connect(ws_addr)
+
+    await client.send('login', {'name': 'user',
+                                'password': 'pass'})
     session = await adapter.session_queue.get()
 
-    await session.client.send('abc')
-    msg = await client.receive()
-    assert msg == {'type': 'adapter',
-                   'name': 'adapter',
-                   'data': 'abc'}
+    with pytest.raises(Exception):
+        await client.send('abc1', None)
 
-    await client.send({'type': 'adapter',
-                       'name': 'adapter',
-                       'data': 123})
-    msg = await session.client.receive()
-    assert msg == 123
+    with pytest.raises(Exception):
+        await client.send('xyz/abc2', None)
+
+    task = asyncio.ensure_future(client.send('adapter/abc3', 123))
+
+    name, data, future = await session.request_queue.get()
+    assert name == 'abc3'
+    assert data == 123
+    future.set_result(321)
+
+    result = await task
+    assert result == 321
 
     await client.async_close()
     await server.async_close()
     await views.async_close()
 
 
-async def test_adapter_remote_data(ui_addr, ws_addr, patch_autoflush_delay):
+async def test_state(ui_addr, ws_addr, patch_autoflush_delay):
     conf = {'address': ui_addr,
             'initial_view': None,
-            'users': [{'name': 'user',
-                       'password': get_password_conf('pass', 'salt'),
-                       'roles': [],
-                       'view': None}]}
+            'users': [create_user_conf(name='user',
+                                       password='pass')]}
     adapter = Adapter()
     adapters = {'adapter': adapter}
     views = ViewManager({})
     server = await hat.gui.server.create_server(conf, adapters, views)
-    client = await juggler.connect(ws_addr, autoflush_delay=0)
-    await client.send({'type': 'login',
-                       'name': 'user',
-                       'password': 'pass'})
+    client = await juggler.connect(ws_addr)
+
+    state_queue = aio.Queue()
+    client.state.register_change_cb(state_queue.put_nowait)
+    if client.state.data is not None:
+        state_queue.put_nowait(client.state.data)
+
+    state = await state_queue.get()
+    assert state == {}
+
+    await client.send('login', {'name': 'user',
+                                'password': 'pass'})
     session = await adapter.session_queue.get()
 
-    assert session.client.remote_data is None
-    assert client.remote_data.get('adapter') is None
+    state = await state_queue.get()
+    assert state == {'adapter': None}
 
-    frontend_data_queue = aio.Queue()
-    session.client.register_change_cb(
-        lambda: frontend_data_queue.put_nowait(session.client.remote_data))
+    session.state.set([], 123)
 
-    backend_data_queue = aio.Queue()
-    client.register_change_cb(
-        lambda: backend_data_queue.put_nowait(client.remote_data))
+    state = await state_queue.get()
+    assert state == {'adapter': 123}
 
-    with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(frontend_data_queue.get(), 0.001)
+    await client.async_close()
+    await server.async_close()
+    await views.async_close()
 
-    with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(backend_data_queue.get(), 0.001)
 
-    client.set_local_data({'adapter': 123})
-    data = await frontend_data_queue.get()
+async def test_notify(ui_addr, ws_addr):
+    conf = {'address': ui_addr,
+            'initial_view': None,
+            'users': [create_user_conf(name='user',
+                                       password='pass')]}
+    adapter = Adapter()
+    adapters = {'adapter': adapter}
+    views = ViewManager({})
+    notify_queue = aio.Queue()
+    server = await hat.gui.server.create_server(conf, adapters, views)
+    client = await juggler.connect(
+        ws_addr,
+        lambda client, name, data: notify_queue.put_nowait((name, data)))
+
+    name, data = await notify_queue.get()
+    assert name == 'init'
+    assert data['user'] is None
+
+    await client.send('login', {'name': 'user',
+                                'password': 'pass'})
+    session = await adapter.session_queue.get()
+
+    name, data = await notify_queue.get()
+    assert name == 'init'
+    assert data['user'] == 'user'
+
+    session.notify('abc', 123)
+
+    name, data = await notify_queue.get()
+    assert name == 'adapter/abc'
     assert data == 123
 
-    session.client.set_local_data('abc')
-    data = await backend_data_queue.get()
-    assert data == {'adapter': 'abc'}
-
     await client.async_close()
     await server.async_close()
     await views.async_close()
-
-
-# TODO: test view

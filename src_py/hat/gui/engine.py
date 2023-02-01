@@ -64,10 +64,14 @@ class Engine(aio.Resource):
 
     async def _receive_loop(self):
         try:
+            mlog.debug('starting read loop')
             while True:
+                mlog.debug('waiting for events')
                 events = await self._eventer_client.receive()
-                adapter_events = {}
 
+                mlog.debug('received new events (count: %s)', len(events))
+
+                adapter_events = {}
                 for event in events:
                     adapter_subscriptions = self._adapter_subscriptions.items()
                     for name, subscription in adapter_subscriptions:
@@ -80,6 +84,8 @@ class Engine(aio.Resource):
                         adapter_events[name].append(event)
 
                 for name, events in adapter_events.items():
+                    mlog.debug('processing events (adapter: %s; count: %s)',
+                               name, len(events))
                     await self._adapters[name].process_events(list(events))
 
         except (aio.QueueClosedError, ConnectionError):
@@ -89,4 +95,5 @@ class Engine(aio.Resource):
             mlog.error('read loop error: %s', e, exc_info=e)
 
         finally:
+            mlog.debug('stopping read loop')
             self.close()

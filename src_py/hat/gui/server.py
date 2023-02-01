@@ -147,6 +147,7 @@ class _Client(aio.Resource):
                 while not user:
                     user = await self._process_loop({})
 
+                mlog.debug("authenticated user: %s", user['name'])
                 while user:
                     user = await self._sessions_loop(user)
 
@@ -181,7 +182,7 @@ class _Client(aio.Resource):
             with contextlib.ExitStack() as exit_stack:
                 for name, session in sessions.items():
                     exit_stack.enter_context(
-                        sessions.state.register_change_cb(
+                        session.state.register_change_cb(
                             functools.partial(self._conn.state.set, name)))
 
                 mlog.debug("setting initial state (user %s)",
@@ -192,6 +193,7 @@ class _Client(aio.Resource):
 
     async def _process_loop(self, sessions):
         while True:
+            mlog.debug("waiting for request")
             future, req_name, req_data = await self._req_queue.get()
             if future.done():
                 continue
@@ -214,7 +216,7 @@ class _Client(aio.Resource):
                     future = None
 
                 elif req_adapter is None and req_name == 'logout':
-                    mlog.debug("authentication error")
+                    mlog.debug("user logout")
                     return None
 
                 elif req_adapter is None and req_name == 'login':
@@ -261,6 +263,8 @@ class _Client(aio.Resource):
 
     def _notify(self, adapter_name, name, data):
         try:
+            mlog.debug("sending notification (adapter: %s; name: %s)",
+                       adapter_name, name)
             self.async_group.spawn(self._conn.notify, f'{adapter_name}/{name}',
                                    data)
 
@@ -299,12 +303,15 @@ class _AdapterSessionProxy(aio.Resource):
 
     async def _session_loop(self):
         try:
+            mlog.debug("starting adapter session loop")
             while True:
+                mlog.debug("waiting for request")
                 future, req_name, req_data = await self._req_queue.get()
                 if future.done():
                     continue
 
                 try:
+                    mlog.debug("processing request (name: %s)", req_name)
                     result = await self._session.process_request(req_name,
                                                                  req_data)
                     if not future.done():
@@ -318,7 +325,11 @@ class _AdapterSessionProxy(aio.Resource):
                     if not future.done():
                         future.set_exception(ConnectionError())
 
+        except Exception as e:
+            mlog.error("adapter session loop error: %s", e, exc_info=e)
+
         finally:
+            mlog.debug("stopping adapter session loop")
             self.close()
             self._req_queue.close()
 
@@ -344,6 +355,7 @@ def _parse_req_name(name):
 def _authenticate(users, name, password):
     user = users.get(name)
     if not user:
+        mlog.debug("authentication failed - invalid name")
         return
 
     password_hash = hashlib.sha256(password.encode('utf-8')).digest()
@@ -356,6 +368,7 @@ def _authenticate(users, name, password):
     h.update(password_hash)
 
     if h.digest() != user_hash:
+        mlog.debug("authentication failed - invalid password")
         return
 
     return user
