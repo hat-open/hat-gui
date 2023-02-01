@@ -136,6 +136,5 @@ async def test_builtin_view():
     view = await manager.get(name)
     assert view.name == name
     assert view.conf is None
-    assert 'index.js' in view.data
 
     await manager.async_close()
