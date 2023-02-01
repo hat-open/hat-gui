@@ -44,8 +44,8 @@ export type Env = {
 export type Util = typeof u;
 
 declare global {
-    var hat: Hat;
-    var r: Renderer;
+    var hat: Hat;  // eslint-disable-line no-var
+    var r: Renderer;  // eslint-disable-line no-var
     // TODO export util types
-    var u: Util;
+    var u: Util;  // eslint-disable-line no-var
 }
