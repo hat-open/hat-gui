@@ -82,9 +82,9 @@ instances with their custom configurations which will be validated with
 associated adapter's optional JSON schema. During adapter instance
 initialization, each adapter instance is provided with instance of
 EventerClient, enabling queries and event registration. Each adapter is
-notified with events sent by Event Server based on it's subscriptions.
+notified with events sent by Event Server based on its subscriptions.
 
-Adapter is responsible for creating new instances of AdapterSessions
+Server is responsible for creating new instances of AdapterSessions
 associated with backend-frontend communication session. AdapterSession
 represents adapter's interface to single authenticated frontend client.
 It enables full juggler communication - request/response, server state and
