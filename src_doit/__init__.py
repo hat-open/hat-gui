@@ -24,6 +24,7 @@ __all__ = ['task_clean_all',
            'task_test',
            'task_docs',
            'task_ui',
+           'task_js',
            'task_json_schema_repo',
            *views.__all__]
 
@@ -39,6 +40,7 @@ node_modules_dir = Path('node_modules')
 
 build_py_dir = build_dir / 'py'
 build_docs_dir = build_dir / 'docs'
+build_js_dir = build_dir / 'js'
 
 ui_dir = src_py_dir / 'hat/gui/ui'
 views_dir = src_py_dir / 'hat/gui/views'
@@ -132,6 +134,42 @@ def task_ui():
 
     return {'actions': [build],
             'pos_arg': 'args',
+            'task_dep': ['node_modules']}
+
+
+def task_js():
+    """Build JS"""
+
+    def build():
+        common.rm_rf(build_js_dir)
+        common.mkdir_p(build_js_dir)
+
+        common.cp_r(src_js_dir / 'api.d.ts', build_js_dir / 'api.d.ts')
+
+        subprocess.run(['pandoc', 'README.rst',
+                        '-o', str(build_js_dir / 'README.md')],
+                       check=True)
+
+        dev_deps = json.decode_file(Path('package.json'))['devDependencies']
+
+        # TODO: add "types": "api.d.ts" ???
+        conf = {'name': '@hat-open/gui',
+                'description': 'Hat GUI type definitions',
+                'license': common.License.APACHE2.value,
+                'version': common.get_version(),
+                'homepage': 'https://github.com/hat-open/hat-gui',
+                'repository': 'hat-open/hat-gui',
+                'dependencies': {i: dev_deps[i]
+                                 for i in ['@hat-open/juggler',
+                                           '@hat-open/renderer']}}
+
+        json.encode_file(conf, build_js_dir / 'package.json')
+        subprocess.run(['npm', 'pack', '--silent'],
+                       stdout=subprocess.DEVNULL,
+                       cwd=str(build_js_dir),
+                       check=True)
+
+    return {'actions': [build],
             'task_dep': ['node_modules']}
 
 
