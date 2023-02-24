@@ -33,6 +33,7 @@ eventer_server:
     address: "tcp+sbs://127.0.0.1:23012"
 syncer_server:
     address: "tcp+sbs://127.0.0.1:23013"
+synced_restart_engine: false
 EOF
 
 exec $PYTHON -m hat.event.server \

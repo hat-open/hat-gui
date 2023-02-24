@@ -24,10 +24,9 @@ def create_subscription(conf):
                                           for i in conf['items']])
 
 
-async def create_adapter(conf, client):
+async def create_adapter(conf, eventer_client):
     adapter = LatestAdapter()
     adapter._authorized_roles = set(conf['authorized_roles'])
-    adapter._client = client
     adapter._async_group = aio.Group()
 
     adapter._event_type_keys = {}
@@ -38,7 +37,7 @@ async def create_adapter(conf, client):
         adapter._event_type_keys[event_type].append(item['key'])
 
     if adapter._event_type_keys:
-        events = await client.query(hat.event.common.QueryData(
+        events = await eventer_client.query(hat.event.common.QueryData(
             event_types=[i for i in adapter._event_type_keys],
             unique_type=True))
 

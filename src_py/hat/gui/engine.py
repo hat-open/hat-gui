@@ -7,8 +7,9 @@ import typing
 
 from hat import aio
 from hat import json
+import hat.event.eventer
+
 from hat.gui import common
-from hat.event.eventer_client import EventerClient
 
 
 mlog: logging.Logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ mlog: logging.Logger = logging.getLogger(__name__)
 
 
 async def create_engine(conf: json.Data,
-                        eventer_client: EventerClient
+                        eventer_client: hat.event.eventer.Client
                         ) -> 'Engine':
     """Create GUI engine"""
     engine = Engine()

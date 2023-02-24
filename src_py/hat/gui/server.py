@@ -12,6 +12,7 @@ import urllib
 from hat import aio
 from hat import json
 from hat import juggler
+
 from hat.gui import common
 import hat.gui.view
 

@@ -7,7 +7,7 @@ import typing
 from hat import aio
 from hat import json
 from hat.event.common import Event, Subscription
-from hat.event.eventer_client import EventerClient
+import hat.event.eventer
 import hat.monitor.common
 
 
@@ -24,7 +24,8 @@ AdapterConf = json.Data
 CreateSubscription = aio.AsyncCallable[[AdapterConf], Subscription]
 """Create subscription callable"""
 
-CreateAdapter = aio.AsyncCallable[[AdapterConf, EventerClient], 'Adapter']
+CreateAdapter = aio.AsyncCallable[[AdapterConf, hat.event.eventer.Client],
+                                  'Adapter']
 """Create adapter callable"""
 
 NotifyCb = typing.Callable[[str, json.Data], None]

@@ -17,7 +17,7 @@ import appdirs
 from hat import aio
 from hat import json
 import hat.event.common
-import hat.event.eventer_client
+import hat.event.eventer
 import hat.monitor.client
 
 from hat.gui import common
@@ -90,57 +90,78 @@ async def async_main(conf: json.Data):
         subscriptions = list(subscription.get_query_types())
 
         if 'monitor' in conf:
-            monitor = await hat.monitor.client.connect(conf['monitor'])
-            await common.bind_resource(async_group, monitor)
+            monitor_client = await hat.monitor.client.connect(conf['monitor'])
+            await common.bind_resource(async_group, monitor_client)
 
-            component = hat.monitor.client.Component(
-                monitor, run_with_monitor, conf, monitor, subscriptions)
-            component.set_ready(True)
-            await common.bind_resource(async_group, component)
-
-            await async_group.wait_closing()
+            monitor_component = hat.monitor.client.Component(
+                monitor_client, run_with_monitor, conf, monitor_client,
+                subscriptions)
+            monitor_component.set_ready(True)
+            await common.bind_resource(async_group, monitor_component)
 
         else:
-            client = await hat.event.eventer_client.connect(
+            eventer_client = await hat.event.eventer.connect(
                 conf['event_server_address'], subscriptions)
-            await common.bind_resource(async_group, client)
+            await common.bind_resource(async_group, eventer_client)
 
-            await async_group.spawn(run_with_event, conf, client)
-
-    finally:
-        await aio.uncancellable(async_group.async_close())
-
-
-async def run_with_monitor(component: hat.monitor.client.Component,
-                           conf: json.Data,
-                           monitor: hat.monitor.client.Client,
-                           subscriptions: typing.List[hat.event.common.EventType]):  # NOQA
-    """Run monitor component"""
-    run_cb = functools.partial(run_with_event, conf)
-    await hat.event.eventer_client.run_eventer_client(
-        monitor, conf['event_server_group'], run_cb, subscriptions)
-
-
-async def run_with_event(conf: json.Data,
-                         client: hat.event.eventer_client.EventerClient):
-    """Run event client"""
-    async_group = aio.Group()
-
-    try:
-        engine = await hat.gui.engine.create_engine(conf, client)
-        await common.bind_resource(async_group, engine)
-
-        views = await hat.gui.view.create_view_manager(conf)
-        await common.bind_resource(async_group, views)
-
-        server = await hat.gui.server.create_server(conf, engine.adapters,
-                                                    views)
-        await common.bind_resource(async_group, server)
+            eventer_runner = EventerRunner(conf, eventer_client)
+            await common.bind_resource(async_group, eventer_runner)
 
         await async_group.wait_closing()
 
     finally:
         await aio.uncancellable(async_group.async_close())
+
+
+async def run_with_monitor(monitor_component: hat.monitor.client.Component,
+                           conf: json.Data,
+                           monitor_client: hat.monitor.client.Client,
+                           subscriptions: typing.List[hat.event.common.EventType]):  # NOQA
+    """Run monitor component"""
+    component_cb = functools.partial(EventerRunner, conf)
+    eventer_component = hat.event.eventer.Component(
+        monitor_client, conf['event_server_group'], component_cb,
+        subscriptions)
+
+    try:
+        await eventer_component.wait_closing()
+
+    finally:
+        await aio.uncancellable(eventer_component.async_close())
+
+
+class EventerRunner(aio.Resource):
+
+    def __init__(self,
+                 conf: json.Data,
+                 eventer_client: hat.event.eventer.Client):
+        self._async_group = aio.Group()
+
+        self.async_group.spawn(self._run, conf, eventer_client)
+
+    @property
+    def async_group(self):
+        return self._async_group
+
+    async def _run(self, conf, eventer_client):
+        try:
+            engine = await hat.gui.engine.create_engine(conf, eventer_client)
+            await common.bind_resource(self.async_group, engine)
+
+            views = await hat.gui.view.create_view_manager(conf)
+            await common.bind_resource(self.async_group, views)
+
+            server = await hat.gui.server.create_server(conf, engine.adapters,
+                                                        views)
+            await common.bind_resource(self.async_group, server)
+
+            await asyncio.Future()
+
+        except Exception as e:
+            mlog.error('eventer runner error: %s', e, exc_info=e)
+
+        finally:
+            self.close()
 
 
 async def _create_subscription(conf):
