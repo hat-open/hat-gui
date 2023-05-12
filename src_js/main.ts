@@ -93,15 +93,18 @@ async function initView(msg: InitMsg) {
     if (env) {
         if (env.destroy)
             await env.destroy();
-        document.head.querySelectorAll('style').forEach(el => {
-            if (!defaultStyleElements.has(el))
-                el.parentNode?.removeChild(el);
-        });
         env = null;
     }
 
     await r.change(state => {
         return {remote: u.get('remote', state)};
+    });
+
+    r.render();
+
+    document.head.querySelectorAll('style').forEach(el => {
+        if (!defaultStyleElements.has(el))
+            el.parentNode?.removeChild(el);
     });
 
     if (msg.view == null)
