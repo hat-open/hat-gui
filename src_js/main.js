@@ -16,7 +16,9 @@ function main() {
     viewManager = new ViewManager();
     const root = document.body.appendChild(document.createElement('div'));
     r.init(root, defaultState, () => viewManager.vt());
-    viewManager.app = new juggler.Application('local', 'remote');
+    viewManager.app = new juggler.Application('local', 'remote', {}, r,
+                                              juggler.getDefaultAddress(),
+                                              100, 5000, 10000, 5000);
     window.viewManager = viewManager;
 }
 

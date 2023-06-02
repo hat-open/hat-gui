@@ -53,10 +53,10 @@
   resolved "https://registry.yarnpkg.com/@hat-open/future/-/future-0.5.5.tgz#2fc1738511090f55868e9774dffa7bd45069dee3"
   integrity sha512-vWTXEBKa4hKWB4i6La5nCmpwjRqUXMU2UKgqhth3KrIelmZwhLsi7wkO/0ifmcmPKsVZZIfBcczeN73fB0K9GQ==
 
-"@hat-open/juggler@^0.5.11":
-  version "0.5.11"
-  resolved "https://registry.yarnpkg.com/@hat-open/juggler/-/juggler-0.5.11.tgz#ecb81b260a37b9b7574390c4cb2d0ba99a443030"
-  integrity sha512-JjpK15e4B5zwSP+wRpbwwLQIWHsqI3QFanGXzek7kYVUTZSFx4C6Y58viRQCjrzdN4iCrFB7qYfYcZSGy74KLg==
+"@hat-open/juggler@^0.5.14":
+  version "0.5.14"
+  resolved "https://registry.yarnpkg.com/@hat-open/juggler/-/juggler-0.5.14.tgz#8692ff77897a338a856d44a4e3f6e36f3f843fb4"
+  integrity sha512-Nqrs5jOov5+pC4E0rTo4ldMycM1uKREPEZjNjS03u8TxNZSMYewG/34ZVrAsjxUwiaZqRvqplUHsEW+SVffyHQ==
   dependencies:
     "@hat-open/future" "^0.5.5"
     "@hat-open/renderer" "^0.5.7"
