@@ -10,7 +10,6 @@ import importlib
 import itertools
 import logging.config
 import sys
-import typing
 
 import appdirs
 
@@ -116,7 +115,7 @@ async def async_main(conf: json.Data):
 async def run_with_monitor(monitor_component: hat.monitor.client.Component,
                            conf: json.Data,
                            monitor_client: hat.monitor.client.Client,
-                           subscriptions: typing.List[hat.event.common.EventType]):  # NOQA
+                           subscriptions: list[hat.event.common.EventType]):
     """Run monitor component"""
     component_cb = functools.partial(EventerRunner, conf)
     eventer_component = hat.event.eventer.Component(

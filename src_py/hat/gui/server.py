@@ -6,7 +6,6 @@ import functools
 import hashlib
 import importlib.resources
 import logging
-import typing
 import urllib
 
 from hat import aio
@@ -25,7 +24,7 @@ autoflush_delay: float = 0.2
 
 
 async def create_server(conf: json.Data,
-                        adapters: typing.Dict[str, common.Adapter],
+                        adapters: dict[str, common.Adapter],
                         views: hat.gui.view.ViewManager
                         ) -> 'Server':
     """Create server"""
@@ -39,7 +38,8 @@ async def create_server(conf: json.Data,
     exit_stack = contextlib.ExitStack()
     try:
         ui_path = exit_stack.enter_context(
-            importlib.resources.path(__package__, 'ui'))
+            importlib.resources.as_file(
+                importlib.resources.files(__package__) / 'ui'))
 
         addr = urllib.parse.urlparse(conf['address'])
         server._srv = await juggler.listen(host=addr.hostname,
@@ -107,10 +107,10 @@ class _Client(aio.Resource):
 
     def __init__(self,
                  conn: juggler.Connection,
-                 adapters: typing.Dict[str, common.Adapter],
+                 adapters: dict[str, common.Adapter],
                  views: hat.gui.view.ViewManager,
-                 initial_view: typing.Optional[str],
-                 users: typing.Dict[str, json.Data]):
+                 initial_view: str | None,
+                 users: dict[str, json.Data]):
         self._conn = conn
         self._adapters = adapters
         self._views = views

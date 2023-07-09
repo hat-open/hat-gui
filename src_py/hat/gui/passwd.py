@@ -4,7 +4,6 @@ import argparse
 import hashlib
 import secrets
 import sys
-import typing
 
 from hat import json
 
@@ -29,7 +28,7 @@ def main():
 
 
 def generate(password: str,
-             salt: typing.Optional[str] = None
+             salt: str | None = None
              ) -> json.Data:
     """Generate password conf
 

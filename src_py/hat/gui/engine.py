@@ -3,7 +3,6 @@
 import collections
 import importlib
 import logging
-import typing
 
 from hat import aio
 from hat import json
@@ -59,7 +58,7 @@ class Engine(aio.Resource):
         return self._async_group
 
     @property
-    def adapters(self) -> typing.Dict[str, common.Adapter]:
+    def adapters(self) -> dict[str, common.Adapter]:
         """Adapters"""
         return self._adapters
 

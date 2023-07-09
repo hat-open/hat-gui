@@ -13,7 +13,7 @@ class View(typing.NamedTuple):
     """View data"""
     name: str
     conf: json.Data
-    data: typing.Dict[str, json.Data]
+    data: dict[str, json.Data]
 
 
 async def create_view_manager(conf: json.Data
@@ -78,7 +78,8 @@ class ViewManager(aio.Resource):
 
 
 def _ext_get_builtin_view_data(builtin_name):
-    with importlib.resources.path(__package__, 'views') as _path:
+    with importlib.resources.as_file(importlib.resources.files(__package__) /
+                                     'views') as _path:
         return _ext_get_view_data(_path / builtin_name)
 
 

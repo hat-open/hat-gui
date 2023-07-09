@@ -11,24 +11,27 @@ import hat.event.eventer
 import hat.monitor.common
 
 
-with importlib.resources.path(__package__, 'json_schema_repo.json') as _path:
+with importlib.resources.as_file(importlib.resources.files(__package__) /
+                                 'json_schema_repo.json') as _path:
     json_schema_repo: json.SchemaRepository = json.SchemaRepository(
         json.json_schema_repo,
         hat.monitor.common.json_schema_repo,
         json.SchemaRepository.from_json(_path))
     """JSON schema repository"""
 
-AdapterConf = json.Data
+AdapterConf: typing.TypeAlias = json.Data
 """Adapter configuration"""
 
-CreateSubscription = aio.AsyncCallable[[AdapterConf], Subscription]
+CreateSubscription: typing.TypeAlias = aio.AsyncCallable[[AdapterConf],
+                                                         Subscription]
 """Create subscription callable"""
 
-CreateAdapter = aio.AsyncCallable[[AdapterConf, hat.event.eventer.Client],
-                                  'Adapter']
+CreateAdapter: typing.TypeAlias = aio.AsyncCallable[[AdapterConf,
+                                                     hat.event.eventer.Client],
+                                                    'Adapter']
 """Create adapter callable"""
 
-NotifyCb = typing.Callable[[str, json.Data], None]
+NotifyCb: typing.TypeAlias = typing.Callable[[str, json.Data], None]
 """Juggler notification callback
 
 Args:
@@ -64,13 +67,13 @@ class Adapter(aio.Resource):
 
     @abc.abstractmethod
     async def process_events(self,
-                             events: typing.List[Event]):
+                             events: list[Event]):
         """Process received events"""
 
     @abc.abstractmethod
     async def create_session(self,
                              user: str,
-                             roles: typing.List[str],
+                             roles: list[str],
                              state: json.Storage,
                              notify_cb: NotifyCb,
                              ) -> 'AdapterSession':
