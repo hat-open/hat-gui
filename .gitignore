@@ -4,5 +4,4 @@
 /src_py/hat/gui/ui
 /src_py/hat/gui/views
 /src_py/**/json_schema_repo.json
-/test_pytest/.coverage
 __pycache__
