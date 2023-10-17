@@ -41,6 +41,15 @@ allOf:
             type: array
             items:
                 "$ref": "hat-gui://main.yaml#/definitions/user"
+        client:
+            type: object
+            properties:
+                retry_delay:
+                    type: number
+                ping_delay:
+                    type: number
+                ping_timeout:
+                    type: number
   - oneOf:
       - type: object
         required:

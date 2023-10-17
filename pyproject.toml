@@ -1,6 +1,6 @@
 [project]
 name = "hat-gui"
-version = "0.6.3"
+version = "0.6.4"
 description = "Hat GUI"
 readme = "README.rst"
 requires-python = ">=3.10"

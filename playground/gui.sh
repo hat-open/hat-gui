@@ -38,6 +38,8 @@ users:
     password: $PASSWORD
     roles: []
     view: null
+client:
+    ping_timeout: 6
 event_server_address: "tcp+sbs://127.0.0.1:23012"
 EOF
 

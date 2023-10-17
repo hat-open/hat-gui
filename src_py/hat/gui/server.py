@@ -8,6 +8,8 @@ import importlib.resources
 import logging
 import urllib
 
+import aiohttp.web
+
 from hat import aio
 from hat import json
 from hat import juggler
@@ -33,6 +35,7 @@ async def create_server(conf: json.Data,
     server._views = views
     server._initial_view = conf['initial_view']
     server._users = {i['name']: i for i in conf['users']}
+    server._client_conf = conf.get('client')
     server._clients = {}
 
     exit_stack = contextlib.ExitStack()
@@ -42,13 +45,16 @@ async def create_server(conf: json.Data,
                 importlib.resources.files(__package__) / 'ui'))
 
         addr = urllib.parse.urlparse(conf['address'])
+        additional_routes = [aiohttp.web.get('/client_conf',
+                                             server._get_client_conf)]
         server._srv = await juggler.listen(host=addr.hostname,
                                            port=addr.port,
                                            connection_cb=server._on_connection,
                                            request_cb=server._on_request,
                                            static_dir=ui_path,
                                            autoflush_delay=autoflush_delay,
-                                           parallel_requests=True)
+                                           parallel_requests=True,
+                                           additional_routes=additional_routes)
 
         try:
             server.async_group.spawn(aio.call_on_cancel, exit_stack.close)
@@ -72,6 +78,9 @@ class Server(aio.Resource):
     def async_group(self) -> aio.Group:
         """Async group"""
         return self._srv.async_group
+
+    async def _get_client_conf(self, req):
+        return aiohttp.web.json_response(self._client_conf)
 
     async def _on_connection(self, conn):
         try:

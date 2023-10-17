@@ -21,14 +21,25 @@ let env: api.Env | null = null;
 let logoutAction: api.LogoutAction | null = null;
 
 
-function main() {
+async function main() {
     document.head.querySelectorAll('style').forEach(el =>
         defaultStyleElements.add(el)
     );
 
     const root = document.body.appendChild(document.createElement('div'));
     r.init(root, null, vt);
-    app = new juggler.Application('remote');
+
+    const clientConfRes = await fetch('/client_conf');
+    const clientConf = await clientConfRes.json();
+
+    const retryDelay = ((u.get('retry_delay', clientConf) || 5) as any) * 1000;
+    const pingDelay = ((u.get('ping_delay', clientConf) || 5) as any) * 1000;
+    const pingTimeout = ((u.get('ping_timeout', clientConf) || 5) as any) * 1000;
+
+    app = new juggler.Application(
+        'remote', r, [juggler.getDefaultAddress()],
+        retryDelay, pingDelay, pingTimeout
+    );
 
     const events: (juggler.Notification | 'disconnected')[] = [];
     const eventLoop = async () => {
