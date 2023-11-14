@@ -87,8 +87,8 @@ async function onNotify(notification: juggler.Notification) {
     if (!env || !env.onNotify)
         return;
 
-    const [adapter, name] = notification.name.split('/');
-    await env.onNotify(adapter, name, notification.data);
+    const [adapter, ...name] = notification.name.split('/');
+    await env.onNotify(adapter, name.join('/'), notification.data);
 }
 
 
