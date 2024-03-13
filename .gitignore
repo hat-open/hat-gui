@@ -1,7 +1,7 @@
 /.doit.db
 /build
 /node_modules
-/src_py/hat/gui/ui
-/src_py/hat/gui/views
+/src_py/hat/gui/server/ui
+/src_py/hat/gui/server/views
 /src_py/**/json_schema_repo.json
 __pycache__

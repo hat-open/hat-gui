@@ -9,10 +9,10 @@ with authentication and authorization control of available resources.
 Running
 -------
 
-By installing GUI Server from `hat-gui` package, executable `hat-gui`
+By installing GUI Server from `hat-gui` package, executable `hat-gui-server`
 becomes available and can be used for starting this component.
 
-    .. program-output:: python -m hat.gui --help
+.. program-output:: python -m hat.gui.server --help
 
 
 Overview
@@ -67,6 +67,11 @@ Event Server is closed, GUI will repeatedly try to establish new connection
 with currently active Event Server. If connection to Monitor Server could not
 be established or is closed, GUI terminates its process execution.
 
+GUI Server can also run independently of Monitor Server. In this case,
+GUI Server connects to predefined Event Server address. If this connection
+could not be established or is broken, GUI Server terminates it's process
+execution.
+
 
 Adapters
 --------
@@ -99,10 +104,10 @@ user authenticated with associated AdapterSession.
 
 Adapters available as part of `hat-gui` package:
 
-    .. toctree::
-       :maxdepth: 1
+.. toctree::
+   :maxdepth: 1
 
-       adapters/latest
+   adapters/latest
 
 
 Views
@@ -117,28 +122,28 @@ resources. Each file inside view's directory (or subdirectory) is identified
 with unix file path relative to view's directory. Each file is read from
 file system and encoded as string based on file extension:
 
-    * `.js`, `.css`, `.txt`
+* `.js`, `.css`, `.txt`
 
-        files are read and encoded as `utf-8` encoded strings
+  files are read and encoded as `utf-8` encoded strings
 
-    * `.json`, `.yaml`, `.yml`, `.toml`
+* `.json`, `.yaml`, `.yml`, `.toml`
 
-        files are read as json, yaml or toml files and encoded as `utf-8` json
-        data representation
+  files are read as json, yaml or toml files and encoded as `utf-8` json
+  data representation
 
-    * `.svg`, `.xml`
+* `.svg`, `.xml`
 
-        files are read as xml data and encoded as `utf-8` json data
-        representing equivalent virtual tree
+  files are read as xml data and encoded as `utf-8` json data
+  representing equivalent virtual tree
 
-        .. todo::
+  .. todo::
 
-            better definition of transformation between xml and virtual
-            tree data
+     better definition of transformation between xml and virtual
+     tree data
 
-    * all other files
+* all other files
 
-        files are read as binary data and encoded as `base64` strings
+  files are read as binary data and encoded as `base64` strings
 
 Server chooses client's view depending on authenticated user configuration.
 This view's resources and configuration is obtained from `ViewManager`.
@@ -150,10 +155,10 @@ view's configuration.
 
 Views available as part of `hat-gui` package:
 
-    .. toctree::
-       :maxdepth: 1
+.. toctree::
+   :maxdepth: 1
 
-       views/login
+   views/login
 
 .. todo::
 
@@ -173,20 +178,20 @@ Request/response
 Juggler request/response communication is used executing system and adapter
 specific actions:
 
-    * system actions
+* system actions
 
-        Currently supported system actions are ``login`` and ``logout``,
-        defined by ``hat-gui://juggler.yaml#/definitions/request``. All
-        requests return ``null`` on success and raise exception in case of
-        error.
+  Currently supported system actions are ``login`` and ``logout``,
+  defined by ``hat-gui://juggler.yaml#/$defs/request``. All
+  requests return ``null`` on success and raise exception in case of
+  error.
 
-    * adapter specific actions
+* adapter specific actions
 
-        Request name is formatted as ``<adapter>/<action>`` where ``<adapter>``
-        is name of adapter instance and ``<action>`` is one of action
-        names supported by referenced adapter instance type. Structure
-        of request data and response results are defined by specific
-        adapter action.
+  Request name is formatted as ``<adapter>/<action>`` where ``<adapter>``
+  is name of adapter instance and ``<action>`` is one of action
+  names supported by referenced adapter instance type. Structure
+  of request data and response results are defined by specific
+  adapter action.
 
 Because AdapterSessions are created only for authenticated users, adapter
 specific actions are available only after successful authentication.
@@ -207,20 +212,20 @@ Server notifications
 Juggler notifications enable backend to notify frontend with system and
 adapter specific notifications:
 
-    * system notifications
+* system notifications
 
-        Currently supported system notification is ``init`` defined by
-        ``hat-gui://juggler.yaml#/definitions/notification``. Backend can
-        send this notification at any time, informing frontend of changes
-        that should be applied to frontend execution environment.
+  Currently supported system notification is ``init`` defined by
+  ``hat-gui://juggler.yaml#/$defs/notification``. Backend can
+  send this notification at any time, informing frontend of changes
+  that should be applied to frontend execution environment.
 
-    * adapter specific notifications
+* adapter specific notifications
 
-        Notification name is formatted as ``<adapter>/<notification>`` where
-        ``<adapter>`` is name of adapter instance and ``<notification>`` is
-        notification identification supported by referenced adapter instance
-        type. Structure of notification data is defined by specific
-        adapter notification.
+  Notification name is formatted as ``<adapter>/<notification>`` where
+  ``<adapter>`` is name of adapter instance and ``<notification>`` is
+  notification identification supported by referenced adapter instance
+  type. Structure of notification data is defined by specific
+  adapter notification.
 
 
 Frontend API
@@ -246,73 +251,72 @@ Client bounds juggler connection's server state to default renderer's
 ``['remote']`` path. Constant ``hat``, available during execution of
 `index.js`, references object with properties:
 
-    * ``conf``
+* ``conf``
 
-        view's configuration
+  view's configuration
 
-    * ``user``
+* ``user``
 
-        authenticated user identifier
+  authenticated user identifier
 
-    * ``roles``
+* ``roles``
 
-        authenticated user roles
+  authenticated user roles
 
-    * ``view``
+* ``view``
 
-        view's data
+  view's data
 
-    * `login(name, password)`
+* `login(name, password)`
 
-        login method
+  login method
 
-    * `logout()`
+* `logout()`
 
-        logout method
+  logout method
 
-    * `send(adapter, name, data)`
+* `send(adapter, name, data)`
 
-        method for request/response communication
+  method for request/response communication
 
-    * `getServerAddresses()`
+* `getServerAddresses()`
 
-        get GUI server juggler addresses
+  get GUI server juggler addresses
 
-    * `setServerAddresses(addresses)`
+* `setServerAddresses(addresses)`
 
-        set GUI server juggler addresses
+  set GUI server juggler addresses
 
-    * `disconnect()`
+* `disconnect()`
 
-        close current juggler connection to GUI server
+  close current juggler connection to GUI server
 
 When evaluation finishes, environment should contain optional functions:
 
-    * ``init()``
+* ``init()``
 
-        called immediately after evaluation of `index.js` finishes
+  called immediately after evaluation of `index.js` finishes
 
-    *  ``vt()``
+*  ``vt()``
 
-        called each time global renderer's state changes (this function should
-        return virtual tree data)
+  called each time global renderer's state changes (this function should
+  return virtual tree data)
 
-    * ``destroy()``
+* ``destroy()``
 
-        called prior to evaluation of other view's `index.js`
+  called prior to evaluation of other view's `index.js`
 
-    * ``onNotify(adapter, name, data)``
+* ``onNotify(adapter, name, data)``
 
-        called each time client receives adapter specific notification from
-        server
+  called each time client receives adapter specific notification from server
 
-    * ``onDisconnected()``
+* ``onDisconnected()``
 
-        called if juggler connection is broken
+  called if juggler connection is broken
 
 .. todo::
 
-    describe `exports` and resulting environment in case of js modules
+  describe `exports` and resulting environment in case of js modules
 
 
 JSON Schemas
@@ -321,7 +325,7 @@ JSON Schemas
 Configuration
 '''''''''''''
 
-.. literalinclude:: ../schemas_json/main.yaml
+.. literalinclude:: ../schemas_json/server.yaml
     :language: yaml
 
 

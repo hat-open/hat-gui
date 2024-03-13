@@ -4,12 +4,11 @@ import pytest
 
 from hat import json
 
-import hat.gui.view
+import hat.gui.server.view
 
 
 async def test_empty_view_manager():
-    conf = {'views': []}
-    manager = await hat.gui.view.create_view_manager(conf)
+    manager = hat.gui.server.view.ViewManager([])
 
     assert manager.is_open
 
@@ -48,10 +47,10 @@ async def test_empty_view_manager():
 ])
 async def test_view_data(tmp_path, files, data):
     name = 'name'
-    conf = {'views': [{'name': name,
-                       'view_path': str(tmp_path),
-                       'conf': 123}]}
-    manager = await hat.gui.view.create_view_manager(conf)
+    view_confs = [{'name': name,
+                   'view_path': str(tmp_path),
+                   'conf': 123}]
+    manager = hat.gui.server.view.ViewManager(view_confs)
 
     view = await manager.get(name)
     assert view.name == name
@@ -77,10 +76,10 @@ async def test_view_data(tmp_path, files, data):
 
 async def test_invalid_view_path():
     name = 'name'
-    conf = {'views': [{'name': name,
-                       'view_path': None,
-                       'conf': None}]}
-    manager = await hat.gui.view.create_view_manager(conf)
+    view_confs = [{'name': name,
+                   'view_path': None,
+                   'conf': None}]
+    manager = hat.gui.server.view.ViewManager(view_confs)
 
     with pytest.raises(Exception):
         await manager.get(name)
@@ -92,10 +91,10 @@ async def test_validate_conf(tmp_path):
     name = 'name'
     conf_path = tmp_path / 'conf.json'
     schema_path = tmp_path / 'schema.json'
-    conf = {'views': [{'name': name,
-                       'view_path': str(tmp_path),
-                       'conf_path': str(conf_path)}]}
-    manager = await hat.gui.view.create_view_manager(conf)
+    view_confs = [{'name': name,
+                   'view_path': str(tmp_path),
+                   'conf_path': str(conf_path)}]
+    manager = hat.gui.server.view.ViewManager(view_confs)
 
     with pytest.raises(Exception):
         await manager.get(name)
@@ -128,10 +127,10 @@ async def test_validate_conf(tmp_path):
 
 async def test_builtin_view():
     name = 'name'
-    conf = {'views': [{'name': name,
-                       'builtin': 'login',
-                       'conf': None}]}
-    manager = await hat.gui.view.create_view_manager(conf)
+    view_confs = [{'name': name,
+                   'builtin': 'login',
+                   'conf': None}]
+    manager = hat.gui.server.view.ViewManager(view_confs)
 
     view = await manager.get(name)
     assert view.name == name

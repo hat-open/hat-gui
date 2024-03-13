@@ -1,35 +1,23 @@
 """Common GUI interfaces"""
 
+from collections.abc import Collection
 import abc
 import importlib.resources
 import typing
 
 from hat import aio
 from hat import json
-from hat.event.common import Event, Subscription
+import hat.event.common
 import hat.event.eventer
-import hat.monitor.common
 
 
 with importlib.resources.as_file(importlib.resources.files(__package__) /
                                  'json_schema_repo.json') as _path:
     json_schema_repo: json.SchemaRepository = json.SchemaRepository(
         json.json_schema_repo,
-        hat.monitor.common.json_schema_repo,
         json.SchemaRepository.from_json(_path))
     """JSON schema repository"""
 
-AdapterConf: typing.TypeAlias = json.Data
-"""Adapter configuration"""
-
-CreateSubscription: typing.TypeAlias = aio.AsyncCallable[[AdapterConf],
-                                                         Subscription]
-"""Create subscription callable"""
-
-CreateAdapter: typing.TypeAlias = aio.AsyncCallable[[AdapterConf,
-                                                     hat.event.eventer.Client],
-                                                    'Adapter']
-"""Create adapter callable"""
 
 NotifyCb: typing.TypeAlias = typing.Callable[[str, json.Data], None]
 """Juggler notification callback
@@ -41,45 +29,6 @@ Args:
 """
 
 
-class Adapter(aio.Resource):
-    """Adapter interface
-
-    Adapters are implemented as python modules which are dynamically imported.
-    Each adapter instance has configuration which must include `module` -
-    python module identifier. It is expected that this module implements:
-
-        * json_schema_id (Optional[str]): JSON schema id
-        * json_schema_repo (Optional[json.SchemaRepository]): JSON schema repo
-        * create_subscription (CreateSubscription): create subscription
-        * create_adapter (CreateAdapter): create new adapter instance
-
-    If module defines JSON schema repositoy and JSON schema id, JSON schema
-    repository will be used for additional validation of adapter configuration
-    with JSON schema id.
-
-    Subscription is used for filtering events which are notified to adapter
-    by `Adapter.process_events` coroutine.
-
-    `create_adapter` is called with adapter instance configuration and adapter
-    event client.
-
-    """
-
-    @abc.abstractmethod
-    async def process_events(self,
-                             events: list[Event]):
-        """Process received events"""
-
-    @abc.abstractmethod
-    async def create_session(self,
-                             user: str,
-                             roles: list[str],
-                             state: json.Storage,
-                             notify_cb: NotifyCb,
-                             ) -> 'AdapterSession':
-        """Create new adapter session"""
-
-
 class AdapterSession(aio.Resource):
     """Adapter's single client session"""
 
@@ -88,17 +37,83 @@ class AdapterSession(aio.Resource):
                               name: str,
                               data: json.Data
                               ) -> json.Data:
-        """Process juggler request"""
+        """Process juggler request
+
+        This method can be coroutine or regular function.
+
+        """
 
 
-async def bind_resource(async_group: aio.Group,
-                        resource: aio.Resource):
-    """Bind resource to async group"""
-    try:
-        async_group.spawn(aio.call_on_cancel, resource.async_close)
-        async_group.spawn(aio.call_on_done, resource.wait_closing(),
-                          async_group.close)
+class Adapter(aio.Resource):
+    """Adapter interface"""
 
-    except Exception:
-        await aio.uncancellable(resource.async_close())
-        raise
+    @abc.abstractmethod
+    async def process_events(self,
+                             events: Collection[hat.event.common.Event]):
+        """Process received events
+
+        This method can be coroutine or regular function.
+
+        """
+
+    @abc.abstractmethod
+    async def create_session(self,
+                             user: str,
+                             roles: set[str],
+                             state: json.Storage,
+                             notify_cb: NotifyCb,
+                             ) -> AdapterSession:
+        """Create new adapter session
+
+        This method can be coroutine or regular function.
+
+        """
+
+
+AdapterConf: typing.TypeAlias = json.Data
+"""Adapter configuration"""
+
+CreateSubscription: typing.TypeAlias = aio.AsyncCallable[
+    [AdapterConf],
+    hat.event.common.Subscription]
+"""Create subscription callable"""
+
+CreateAdapter: typing.TypeAlias = aio.AsyncCallable[
+    [AdapterConf, hat.event.eventer.Client],
+    Adapter]
+"""Create adapter callable"""
+
+
+class AdapterInfo(typing.NamedTuple):
+    """Adapter info
+
+    Adapter is implemented as python modules which is dynamically imported.
+    It is expected that this module contains `info` which is instance of
+    `AdapterInfo`.
+
+    Each adapter instance has configuration which must include `module` -
+    python module identifier. It is expected that this module implements:
+
+    If adapter defines JSON schema repository and JSON schema id, JSON schema
+    repository will be used for additional validation of adapter configuration
+    with JSON schema id.
+
+    Subscription obtained by calling `create_subscription` is used for
+    filtering events which are notified to adapter by `Adapter.process_events`.
+
+    """
+    create_subscription: CreateSubscription
+    create_adapter: CreateAdapter
+    json_schema_id: str | None = None
+    json_schema_repo: json.SchemaRepository | None = None
+
+
+def import_adapter_info(py_module_str: str) -> AdapterInfo:
+    """Import module info"""
+    py_module = importlib.import_module(py_module_str)
+    info = py_module.info
+
+    if not isinstance(info, AdapterInfo):
+        raise Exception('invalid adapter implementation')
+
+    return info

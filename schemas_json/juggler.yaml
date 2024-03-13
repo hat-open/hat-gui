@@ -1,7 +1,6 @@
----
-"$schema": "http://json-schema.org/schema#"
-id: "hat-gui://juggler.yaml#"
-definitions:
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "hat-gui://juggler.yaml"
+$defs:
     state:
         type: object
     request:
@@ -38,4 +37,3 @@ definitions:
                     type:
                         - object
                         - "null"
-...

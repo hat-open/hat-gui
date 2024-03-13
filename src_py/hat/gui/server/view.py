@@ -1,5 +1,6 @@
 """View manager implementation"""
 
+from collections.abc import Iterable
 from pathlib import Path
 import base64
 import importlib.resources
@@ -16,24 +17,18 @@ class View(typing.NamedTuple):
     data: dict[str, json.Data]
 
 
-async def create_view_manager(conf: json.Data
-                              ) -> 'ViewManager':
-    """Create view manager"""
-    manager = ViewManager()
-    manager._view_confs = {view_conf['name']: view_conf
-                           for view_conf in conf['views']}
-    manager._async_group = aio.Group(log_exceptions=False)
-    manager._executor = aio.create_executor()
-    return manager
-
-
 class ViewManager(aio.Resource):
     """View manager"""
+
+    def __init__(self, view_confs: Iterable[json.Data]):
+        self._view_confs = {view_conf['name']: view_conf
+                            for view_conf in view_confs}
+        self._executor = aio.Executor(log_exceptions=False)
 
     @property
     def async_group(self) -> aio.Group:
         """Async group"""
-        return self._async_group
+        return self._executor.async_group
 
     async def get(self,
                   name: str
@@ -45,19 +40,19 @@ class ViewManager(aio.Resource):
         conf = self._view_confs[name]
 
         if 'view_path' in conf:
-            view_data = await self._async_group.spawn(
-                self._executor, _ext_get_view_data, Path(conf['view_path']))
+            view_data = await self._executor.spawn(_ext_get_view_data,
+                                                   Path(conf['view_path']))
 
         elif 'builtin' in conf:
-            view_data = await self._async_group.spawn(
-                self._executor, _ext_get_builtin_view_data, conf['builtin'])
+            view_data = await self._executor.spawn(_ext_get_builtin_view_data,
+                                                   conf['builtin'])
 
         else:
             raise ValueError('unknown view data path')
 
         if 'conf_path' in conf:
-            view_conf = await self._async_group.spawn(
-                self._executor, json.decode_file, Path(conf['conf_path']))
+            view_conf = await self._executor.spawn(json.decode_file,
+                                                   Path(conf['conf_path']))
 
         elif 'conf' in conf:
             view_conf = conf['conf']
@@ -68,7 +63,7 @@ class ViewManager(aio.Resource):
         schema = (view_data.get('schema.json') or
                   view_data.get('schema.yaml') or
                   view_data.get('schema.yml'))
-        if schema:
+        if schema is not None:
             repo = json.SchemaRepository(schema)
             repo.validate(schema['id'], view_conf)
 

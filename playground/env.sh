@@ -1,7 +1,8 @@
-PYTHON=${PYTHON:-python}
-RUN_PATH=$(cd $(dirname -- "$0") && pwd)
-ROOT_PATH=$RUN_PATH/..
-DATA_PATH=$RUN_PATH/data
+: ${PLAYGROUND_PATH:?}
+
+PYTHON=${PYTHON:-python3}
+ROOT_PATH=$PLAYGROUND_PATH/..
+DATA_PATH=$PLAYGROUND_PATH/data
 
 export PYTHONPATH=$ROOT_PATH/src_py
 

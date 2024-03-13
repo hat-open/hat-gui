@@ -21,7 +21,7 @@ def main():
     parser = create_argument_parser()
     args = parser.parse_args()
 
-    password = args.password or sys.stdin.read()
+    password = args.password or sys.stdin.read().strip()
     result = generate(password, args.salt)
 
     print(json.encode(result))
@@ -32,7 +32,7 @@ def generate(password: str,
              ) -> json.Data:
     """Generate password conf
 
-    Result is defined by ``hat-gui://main.yaml#/definitions/password``
+    Result is defined by ``hat-gui://server.yaml#/$defs/password``
 
     """
     salt_bytes = salt.encode('utf-8') if salt else secrets.token_bytes(32)

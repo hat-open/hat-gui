@@ -16,7 +16,7 @@ src_static_dir = Path('src_static')
 node_modules_dir = Path('node_modules')
 
 views_src_dir = src_js_dir / 'views'
-views_dst_dir = src_py_dir / 'hat/gui/views'
+views_dst_dir = src_py_dir / 'hat/gui/server/views'
 views_static_dir = src_static_dir / 'views'
 
 
@@ -52,7 +52,7 @@ def _build_view(src_path, dst_dir, static_dir, args):
         config_path.write_text(_webpack_conf.format(
             src_path=src_path.resolve(),
             dst_dir=dst_dir.resolve()))
-        subprocess.run([str(node_modules_dir / '.bin/webpack'),
+        subprocess.run(['npx', 'webpack',
                         '--config', str(config_path),
                         *args],
                        check=True)
@@ -70,17 +70,10 @@ module.exports = {{
     module: {{
         rules: [
             {{
-                test: /\.scss$/,
+                test: /\.css$/,
                 use: [
                     "style-loader",
-                    {{
-                        loader: "css-loader",
-                        options: {{url: false}}
-                    }},
-                    {{
-                        loader: "sass-loader",
-                        options: {{sourceMap: true}}
-                    }}
+                    "css-loader"
                 ]
             }},
             {{

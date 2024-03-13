@@ -1,6 +1,6 @@
-@import 'fonts/fontawesome';
-@import 'fonts/inter';
-@import 'fonts/robotomono';
+@import url('fonts/fontawesome.css');
+@import url('fonts/inter.css');
+@import url('fonts/robotomono.css');
 
 
 html, body, button, input, select {
@@ -14,4 +14,3 @@ pre {
 html, body {
     margin: 0;
 }
-

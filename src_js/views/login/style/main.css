@@ -1,5 +1,5 @@
-@import 'color';
-@import 'shadow';
+@import url('color.css');
+@import url('shadow.css');
 
 
 html, body {
@@ -20,7 +20,7 @@ body {
     }
 
     .login {
-        @include shadow-4dp;
+        box-shadow: var(--box-shadow-4dp);
         display: grid;
         grid-template-columns: auto auto;
         gap: 0.5rem;
@@ -29,7 +29,7 @@ body {
 
         .message {
             grid-column: 1 / 3;
-            border: 0.2rem solid $color-red-200;
+            border: 0.2rem solid var(--color-red-200);
             background-color: white;
             padding: 0.5rem;
         }

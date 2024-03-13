@@ -2,9 +2,7 @@ import r from '@hat-open/renderer';
 import * as u from '@hat-open/util';
 import * as juggler from '@hat-open/juggler';
 
-import type * as api from './api';
-
-import '../src_scss/main.scss';
+import type * as api from '../api';
 
 
 type InitMsg = {

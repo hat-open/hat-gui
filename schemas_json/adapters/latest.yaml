@@ -1,6 +1,5 @@
----
-"$schema": "http://json-schema.org/schema#"
-id: "hat-gui://adapters/latest.yaml#"
+$schema: "https://json-schema.org/draft/2020-12/schema"
+id: "hat-gui://adapters/latest.yaml"
 title: Latest adapter
 type: object
 required:

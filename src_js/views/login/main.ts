@@ -3,7 +3,7 @@ import * as u from '@hat-open/util';
 
 import type * as _ from '../../api';  // eslint-disable-line @typescript-eslint/no-unused-vars
 
-import '../../../src_scss/views/login/main.scss';
+import './style/main.css';
 
 
 type State = {

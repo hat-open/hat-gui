@@ -1,18 +1,18 @@
 [project]
 name = "hat-gui"
-version = "0.6.5"
+version = "0.7.0-dev"
 description = "Hat GUI"
 readme = "README.rst"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 dependencies = [
-    "appdirs ~= 1.4.4",
-    "hat-aio ~= 0.7.8",
-    "hat-event ~= 0.8.8",
-    "hat-json ~= 0.5.19",
-    "hat-juggler ~= 0.6.11",
-    "hat-monitor ~= 0.7.2",
-    "hat-util ~= 0.6.10",
+    "appdirs ~=1.4.4",
+    "hat-aio ~=0.7.9",
+    "hat-event ~=0.9.0-dev",
+    "hat-json ~=0.5.26",
+    "hat-juggler ~=0.6.14",
+    "hat-monitor ~=0.8.5",
+    "hat-util ~=0.6.13",
 ]
 
 [project.urls]
@@ -20,16 +20,20 @@ Homepage = "http://hat-open.com"
 Repository = "https://github.com/hat-open/hat-gui.git"
 Documentation = "http://hat-gui.hat-open.com"
 
+[project.scripts]
+hat-gui-server = "hat.gui.server.main:main"
+hat-gui-passwd = "hat.gui.passwd:main"
+
 [project.optional-dependencies]
 dev = [
-    "hat-doit ~=0.14.5",
-    "psutil >= 5.9.5",
-    "sphinxcontrib-plantuml >= 0.24.1",
-    "sphinxcontrib-programoutput >= 0.17",
+    "hat-doit ~=0.15.11",
+    "psutil >=5.9.5",
+    "sphinxcontrib-plantuml >=0.24.1",
+    "sphinxcontrib-programoutput >=0.17",
 ]
 
 [build-system]
-requires = ["hat-doit ~=0.14.5"]
+requires = ["hat-doit ~=0.15.11"]
 build-backend = "hat.doit.pep517"
 
 [tool.hat-doit]

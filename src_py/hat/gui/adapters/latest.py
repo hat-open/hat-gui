@@ -15,10 +15,6 @@ import hat.event.common
 from hat.gui import common
 
 
-json_schema_id = 'hat-gui://adapters/latest.yaml#'
-json_schema_repo = common.json_schema_repo
-
-
 def create_subscription(conf):
     return hat.event.common.Subscription([tuple(i['event_type'])
                                           for i in conf['items']])
@@ -29,24 +25,28 @@ async def create_adapter(conf, eventer_client):
     adapter._authorized_roles = set(conf['authorized_roles'])
     adapter._async_group = aio.Group()
 
-    adapter._event_type_keys = {}
+    adapter._event_type_keys = collections.defaultdict(collections.deque)
     for item in conf['items']:
         event_type = tuple(item['event_type'])
-        if event_type not in adapter._event_type_keys:
-            adapter._event_type_keys[event_type] = collections.deque()
         adapter._event_type_keys[event_type].append(item['key'])
 
     if adapter._event_type_keys:
-        events = await eventer_client.query(hat.event.common.QueryData(
-            event_types=[i for i in adapter._event_type_keys],
-            unique_type=True))
+        event_types = list(adapter._event_type_keys.keys())
+        params = hat.event.common.QueryLatestParams(event_types)
+        result = await eventer_client.query(params)
 
     else:
-        events = []
+        result = hat.event.common.QueryResult([], False)
 
-    adapter._state = json.Storage(dict(adapter._events_to_data(events)))
+    adapter._state = json.Storage(dict(adapter._events_to_data(result.events)))
 
     return adapter
+
+
+info = common.AdapterInfo(create_subscription=create_subscription,
+                          create_adapter=create_adapter,
+                          json_schema_id='hat-gui://adapters/latest.yaml',
+                          json_schema_repo=common.json_schema_repo)
 
 
 class LatestAdapter(common.Adapter):
@@ -66,7 +66,6 @@ class LatestAdapter(common.Adapter):
         session = LatestSession()
         session._async_group = self.async_group.create_subgroup()
 
-        roles = set(roles)
         is_authorized = not roles.isdisjoint(self._authorized_roles)
 
         if is_authorized:
@@ -82,7 +81,7 @@ class LatestAdapter(common.Adapter):
 
     def _events_to_data(self, events):
         for event in events:
-            for key in self._event_type_keys.get(event.event_type, []):
+            for key in self._event_type_keys.get(event.type, []):
                 yield key, _event_to_data(event)
 
 
@@ -101,27 +100,23 @@ def _event_to_data(event):
     source_timestamp = (
         hat.event.common.timestamp_to_float(event.source_timestamp)
         if event.source_timestamp is not None else None)
-    return dict(timestamp=timestamp,
-                source_timestamp=source_timestamp,
-                payload=_event_payload_to_json(event.payload))
+
+    return {'timestamp': timestamp,
+            'source_timestamp': source_timestamp,
+            'payload': _event_payload_to_json(event.payload)}
 
 
 def _event_payload_to_json(payload):
     if payload is None:
         return
 
-    if payload.type == hat.event.common.EventPayloadType.JSON:
+    if isinstance(payload, hat.event.common.EventPayloadJson):
         return {'type': 'JSON',
                 'data': payload.data}
 
-    if payload.type == hat.event.common.EventPayloadType.BINARY:
+    if isinstance(payload, hat.event.common.EventPayloadBinary):
         return {'type': 'BINARY',
+                'name': payload.type,
                 'data': base64.b64encode(payload.data).decode()}
-
-    if payload.type == hat.event.common.EventPayloadType.SBS:
-        return {'type': 'SBS',
-                'data': {'module': payload.data.module,
-                         'type': payload.data.type,
-                         'data': base64.b64encode(payload.data.data).decode()}}
 
     raise ValueError('unsupported payload type')
