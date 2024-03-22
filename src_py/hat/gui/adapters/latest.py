@@ -16,8 +16,8 @@ from hat.gui import common
 
 
 def create_subscription(conf):
-    return hat.event.common.Subscription([tuple(i['event_type'])
-                                          for i in conf['items']])
+    return hat.event.common.create_subscription(tuple(i['event_type'])
+                                                for i in conf['items'])
 
 
 async def create_adapter(conf, eventer_client):

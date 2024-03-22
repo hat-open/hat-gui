@@ -13,7 +13,7 @@ from hat.gui import common
 import hat.gui.server.adapter
 
 
-subscription = hat.event.common.Subscription([('a', '*')])
+subscription = hat.event.common.create_subscription([('a', '*')])
 
 next_event_ids = (hat.event.common.EventId(1, 1, instance)
                   for instance in itertools.count(1))
@@ -83,7 +83,7 @@ def create_event(event_type):
 async def test_get_subscriptions(adapter_count, create_adapter_module):
     modules = [
         create_adapter_module(
-            subscription=hat.event.common.Subscription([('a', str(i))]))
+            subscription=hat.event.common.create_subscription([('a', str(i))]))
         for i in range(adapter_count)]
 
     confs = [{'name': f'name {i}',

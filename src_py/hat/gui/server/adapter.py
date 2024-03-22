@@ -38,7 +38,7 @@ def get_subscriptions(infos: Iterable[ConfAdapterInfo]
     query_types = itertools.chain.from_iterable(
         info.subscription.get_query_types()
         for info in infos)
-    subscription = hat.event.common.Subscription(query_types)
+    subscription = hat.event.common.create_subscription(query_types)
 
     return subscription.get_query_types()
 
