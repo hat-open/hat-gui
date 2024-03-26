@@ -3,6 +3,8 @@ from .views import *  # NOQA
 from pathlib import Path
 import subprocess
 
+import doit
+
 from hat.doit import common
 
 
@@ -40,6 +42,7 @@ def task_ui_ts():
             'task_dep': ['node_modules']}
 
 
+@doit.create_after('node_modules')
 def task_ui_static():
     """Copy UI static files"""
     src_dst_dirs = [(src_static_dir / 'ui',
