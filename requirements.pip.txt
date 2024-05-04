@@ -1,9 +1,9 @@
 appdirs ~=1.4.4
 hat-aio ~=0.7.9
-hat-doit ~=0.15.12
+hat-doit ~=0.15.13
 hat-event ~=0.9.0
-hat-json ~=0.5.26
-hat-juggler ~=0.6.14
+hat-json ~=0.5.27
+hat-juggler ~=0.6.15
 hat-monitor ~=0.8.5
 hat-util ~=0.6.13
 psutil >=5.9.5
