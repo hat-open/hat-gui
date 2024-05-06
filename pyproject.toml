@@ -1,6 +1,6 @@
 [project]
 name = "hat-gui"
-version = "0.6.6"
+version = "0.6.7"
 description = "Hat GUI"
 readme = "README.rst"
 requires-python = ">=3.10"
@@ -10,7 +10,7 @@ dependencies = [
     "hat-aio ~= 0.7.8",
     "hat-event ~= 0.8.8",
     "hat-json ~= 0.5.19",
-    "hat-juggler ~= 0.6.17",
+    "hat-juggler ~= 0.6.18",
     "hat-monitor ~= 0.7.2",
     "hat-util ~= 0.6.10",
 ]

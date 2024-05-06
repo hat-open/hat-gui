@@ -22,14 +22,13 @@
     minimatch "^3.1.2"
     strip-json-comments "^3.1.1"
 
-"@hat-open/juggler@^0.6.17":
-  version "0.6.17"
-  resolved "https://registry.yarnpkg.com/@hat-open/juggler/-/juggler-0.6.17.tgz#2f5fb19da48ce3e3609a0b46d84207081b88f721"
-  integrity sha512-D/d6RhVAQ/fZ+cHN4jJf0MuZIkNdEgxqD3VYt8OAMJCXcXoiYcLCuAEUOwOoh0dPjJTon0cAMw6YjhRw3y2lSQ==
+"@hat-open/juggler@^0.6.18":
+  version "0.6.18"
+  resolved "https://registry.yarnpkg.com/@hat-open/juggler/-/juggler-0.6.18.tgz#94299fe86ce7092fafca75e8e376b2a7f936634f"
+  integrity sha512-XuMEq3IiPE+MEnsvsPT1hTsKHnBOiYY5fCohG25DiI/O3mWa2ar0agkC8fSxaJfUv2UA/AnBtfkTWZM4yJ3tgw==
   dependencies:
     "@hat-open/renderer" "^0.6.4"
-    "@hat-open/util" "^0.6.13"
-    fast-json-patch "^3.1.1"
+    "@hat-open/util" "^0.6.16"
 
 "@hat-open/renderer@^0.6.3":
   version "0.6.3"
@@ -52,15 +51,15 @@
   resolved "https://registry.yarnpkg.com/@hat-open/util/-/util-0.6.13.tgz#9ef4b373e56687bdc8aa8de686ba27dde679e02b"
   integrity sha512-ckN4ThOs5u8Rc2qop3xr4C+cbeDhkD4P/pTUyBEoRXRlz9MSeiWS0n4/OIDDqVdU31RG2zPnYLS+K+X/ppbA7Q==
 
+"@hat-open/util@^0.6.16":
+  version "0.6.16"
+  resolved "https://registry.yarnpkg.com/@hat-open/util/-/util-0.6.16.tgz#08b4fa410491e15458ae82fbc5a587ddaeb9d348"
+  integrity sha512-3Z5TYdjPxjbXb85IBL/BECNyoKnNKZgqxXOebM7mFjSiTNQTrTSCGxAlVGCTSS6N8sqvMge7oCr+L9RBSIStyw==
+
 "@hat-open/util@^0.6.7":
   version "0.6.7"
   resolved "https://registry.yarnpkg.com/@hat-open/util/-/util-0.6.7.tgz#0925b079b21f7b0250e53942e9316d0e606a491a"
   integrity sha512-1CrzfjAO+T+9A4sevDwMeudq/Mm4OrKSA+3vtASsPaBea9QmknoacSxsw7xUTIofQbl3eSEmBfh38Zx0xI9Pgw==
-
-"@hat-open/util@^0.6.9":
-  version "0.6.9"
-  resolved "https://registry.yarnpkg.com/@hat-open/util/-/util-0.6.9.tgz#51888ca5ad5bb40defdb4e9c3b59f090168c8a0f"
-  integrity sha512-3F0VimPrhISELQirA/bxeNg1z0t3oUOjDK+Nkc7EtGbJRAwHC3t3X6MLMHnYYt6HBoqpiE5bhTYLfUDg8d27pQ==
 
 "@humanwhocodes/config-array@^0.11.8":
   version "0.11.8"
@@ -814,11 +813,6 @@ fast-glob@^3.2.9:
     glob-parent "^5.1.2"
     merge2 "^1.3.0"
     micromatch "^4.0.4"
-
-fast-json-patch@^3.1.1:
-  version "3.1.1"
-  resolved "https://registry.yarnpkg.com/fast-json-patch/-/fast-json-patch-3.1.1.tgz#85064ea1b1ebf97a3f7ad01e23f9337e72c66947"
-  integrity sha512-vf6IHUX2SBcA+5/+4883dsIjpBTqmfBjmYiWK1savxQmFk4JfBMLa7ynTYOs1Rolp/T1betJxHiGD3g1Mn8lUQ==
 
 fast-json-stable-stringify@^2.0.0:
   version "2.1.0"
