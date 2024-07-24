@@ -67,7 +67,7 @@ class MainRunner(aio.Resource):
             self._eventer_component = await hat.event.component.connect(
                 addr=tcp.Address(monitor_component_conf['host'],
                                  monitor_component_conf['port']),
-                name=self._conf['gui_name'],
+                name=self._conf['name'],
                 group=monitor_component_conf['gui_group'],
                 server_group=monitor_component_conf['event_server_group'],
                 runner_cb=self._create_eventer_runner,
@@ -83,7 +83,7 @@ class MainRunner(aio.Resource):
             self._eventer_client = await hat.event.eventer.connect(
                 addr=tcp.Address(eventer_server_conf['host'],
                                  eventer_server_conf['port']),
-                client_name=self._conf['gui_name'],
+                client_name=self._conf['name'],
                 subscriptions=subscriptions,
                 events_cb=self._on_client_events)
             _bind_resource(self.async_group, self._eventer_client)

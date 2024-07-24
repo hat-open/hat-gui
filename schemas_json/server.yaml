@@ -4,7 +4,7 @@ title: GUI server
 description: GUI server's configuration
 type: object
 required:
-    - gui_name
+    - name
     - event_server
     - address
     - adapters
@@ -19,8 +19,9 @@ properties:
         description: component version
     log:
         $ref: "hat-json://logging.yaml"
-    gui_name:
+    name:
         type: string
+        description: component name
     event_server:
         oneOf:
           - type: object
