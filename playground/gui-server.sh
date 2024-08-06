@@ -10,7 +10,7 @@ CONF_PATH=$DATA_PATH/gui.yaml
 
 PASSWORD="$($PYTHON -m hat.gui.passwd pass1)"
 
-cat > $CONF_PATH << EOF
+cat >$CONF_PATH <<EOF
 log:
     version: 1
     formatters:
@@ -38,8 +38,9 @@ log:
             - console_handler
             - syslog_handler
     disable_existing_loggers: false
-gui_name: gui
+name: gui
 event_server:
+    require_operational: true
     eventer_server:
         host: "127.0.0.1"
         port: 23012
