@@ -11,6 +11,7 @@ import aiohttp.web
 from hat import aio
 from hat import json
 from hat import juggler
+import hat.event.common
 
 import hat.gui.server.user
 import hat.gui.server.view
@@ -23,20 +24,24 @@ mlog: logging.Logger = logging.getLogger(__name__)
 
 async def create_server(host: str,
                         port: int,
+                        name: str,
                         initial_view: str | None,
                         client_conf: json.Data | None,
                         user_manager: hat.gui.server.user.UserManager,
                         view_manager: hat.gui.server.view.ViewManager,
                         adapter_manager: hat.gui.server.adapter.AdapterManager,
+                        eventer_client: hat.event.eventer.Client,
                         autoflush_delay: float = 0.2
                         ) -> 'Server':
     """Create server"""
     server = Server()
+    server._name = name
     server._initial_view = initial_view
     server._client_conf = client_conf
     server._user_manager = user_manager
     server._view_manager = view_manager
     server._adapter_manager = adapter_manager
+    server._eventer_client = eventer_client
     server._clients = {}
 
     exit_stack = contextlib.ExitStack()
@@ -90,7 +95,8 @@ class Server(aio.Resource):
                             initial_view=self._initial_view,
                             user_manager=self._user_manager,
                             view_manager=self._view_manager,
-                            adapter_manager=self._adapter_manager)
+                            adapter_manager=self._adapter_manager,
+                            user_change_cb=self._on_user_change)
             self._clients[conn] = client
 
             await client.wait_closing()
@@ -112,6 +118,20 @@ class Server(aio.Resource):
 
         return await client.process_request(name, data)
 
+    async def _on_user_change(self):
+        event = hat.event.common.RegisterEvent(
+            type=('gui', self._name, 'clients'),
+            source_timestamp=None,
+            payload=hat.event.common.EventPayloadJson(
+                [{'remote': conn.remote,
+                  'user': client.user.name}
+                 for conn, client in self._clients.items()
+                 if client.user]))
+
+        mlog.debug("registering clients event")
+        with contextlib.suppress(Exception):
+            await self._eventer_client.register([event])
+
 
 class Client(aio.Resource):
 
@@ -121,20 +141,27 @@ class Client(aio.Resource):
                  user_manager: hat.gui.server.user.UserManager,
                  view_manager: hat.gui.server.view.ViewManager,
                  adapter_manager: hat.gui.server.adapter.AdapterManager,
+                 user_change_cb: aio.AsyncCallable[[], None],
                  req_queue_size: int = 0):
         self._conn = conn
         self._initial_view = initial_view
         self._user_manager = user_manager
         self._view_manager = view_manager
         self._adapter_manager = adapter_manager
+        self._user_change_cb = user_change_cb
         self._loop = asyncio.get_running_loop()
         self._req_queue = aio.Queue(req_queue_size)
+        self._user = None
 
         self.async_group.spawn(self._client_loop)
 
     @property
-    def async_group(self):
+    def async_group(self) -> aio.Group:
         return self._conn.async_group
+
+    @property
+    def user(self) -> hat.gui.server.user.User | None:
+        return self._user
 
     async def process_request(self,
                               name: str,
@@ -149,20 +176,47 @@ class Client(aio.Resource):
             raise Exception('connection closed')
 
     async def _client_loop(self):
-        user = None
         try:
             mlog.debug("starting client loop")
             while True:
                 mlog.debug("setting initial state")
-                await self._init_state(None, self._initial_view, {})
+                await self._init_state({})
 
                 mlog.debug("waiting for authentication")
-                while not user:
-                    user = await self._process_loop({})
+                while not self._user:
+                    await self._process_loop({})
 
-                mlog.debug("authenticated user: %s", user.name)
-                while user:
-                    user = await self._sessions_loop(user)
+                while self._user:
+                    mlog.debug("starting session (user %s)",
+                               self._user.name)
+                    async with self.async_group.create_subgroup() as subgroup:
+                        sessions = {}
+
+                        adapters = self._adapter_manager.adapters
+                        for name, adapter in adapters.items():
+                            mlog.debug("creating adapter sessions "
+                                       "(user %s; adapter %s)",
+                                       self._user.name, name)
+                            notify_cb = functools.partial(self._notify, name)
+                            session = await _create_adapter_session_proxy(
+                                user=self._user,
+                                adapter=adapter,
+                                notify_cb=notify_cb)
+                            await _bind_resource(subgroup, session)
+                            sessions[name] = session
+
+                        with contextlib.ExitStack() as exit_stack:
+                            for name, session in sessions.items():
+                                exit_stack.enter_context(
+                                    session.state.register_change_cb(
+                                        functools.partial(self._conn.state.set,
+                                                          name)))
+
+                            mlog.debug("setting initial state (user %s)",
+                                       self._user.name)
+                            await self._init_state(sessions)
+
+                            await self._process_loop(sessions)
 
         except Exception as e:
             mlog.debug("client loop error: %s", e, exc_info=e)
@@ -178,32 +232,7 @@ class Client(aio.Resource):
                     continue
                 future.set_exception(ConnectionError())
 
-    async def _sessions_loop(self, user):
-        mlog.debug("starting sessions loop (user %s)", user.name)
-        async with self.async_group.create_subgroup() as subgroup:
-            sessions = {}
-
-            for name, adapter in self._adapter_manager.adapters.items():
-                mlog.debug("creating adapter sessions (user %s; adapter %s)",
-                           user.name, name)
-                notify_cb = functools.partial(self._notify, name)
-                session = await _create_adapter_session_proxy(
-                    user=user,
-                    adapter=adapter,
-                    notify_cb=notify_cb)
-                await _bind_resource(subgroup, session)
-                sessions[name] = session
-
-            with contextlib.ExitStack() as exit_stack:
-                for name, session in sessions.items():
-                    exit_stack.enter_context(
-                        session.state.register_change_cb(
-                            functools.partial(self._conn.state.set, name)))
-
-                mlog.debug("setting initial state (user %s)", user.name)
-                await self._init_state(user, user.view, sessions)
-
-                return await self._process_loop(sessions)
+            await aio.uncancellable(self._set_user(None))
 
     async def _process_loop(self, sessions):
         while True:
@@ -231,7 +260,8 @@ class Client(aio.Resource):
 
                 elif req_adapter is None and req_name == 'logout':
                     mlog.debug("user logout")
-                    return None
+                    await self._set_user(None)
+                    return
 
                 elif req_adapter is None and req_name == 'login':
                     try:
@@ -244,7 +274,8 @@ class Client(aio.Resource):
                         raise Exception("authentication error")
 
                     mlog.debug("authentication success (user %s)", user.name)
-                    return user
+                    await self._set_user(user)
+                    return
 
                 else:
                     mlog.debug("unsupported request")
@@ -257,7 +288,9 @@ class Client(aio.Resource):
                 if future and not future.done():
                     future.set_result(None)
 
-    async def _init_state(self, user, view_name, sessions):
+    async def _init_state(self, sessions):
+        view_name = self._user.view if self._user else self._initial_view
+
         if view_name:
             view = await self._view_manager.get(view_name)
 
@@ -269,8 +302,8 @@ class Client(aio.Resource):
         await self._conn.flush()
 
         await self._conn.notify('init', {
-            'user': (user.name if user else None),
-            'roles': (list(user.roles) if user else []),
+            'user': (self._user.name if self._user else None),
+            'roles': (list(self._user.roles) if self._user else []),
             'view': (view.data if view else None),
             'conf': (view.conf if view else None)})
 
@@ -283,6 +316,16 @@ class Client(aio.Resource):
 
         except Exception:
             mlog.debug("unsupported request")
+
+    async def _set_user(self, user):
+        if self._user == user:
+            return
+
+        mlog.debug("changing user %s -> %s", (self._user and self._user.name),
+                   (user and user.name))
+        self._user = user
+
+        await aio.call(self._user_change_cb)
 
 
 async def _create_adapter_session_proxy(user, adapter, notify_cb,

@@ -319,6 +319,21 @@ When evaluation finishes, environment should contain optional functions:
   describe `exports` and resulting environment in case of js modules
 
 
+GUI events
+----------
+
+In addition to events registered by Adapters, Server registers events
+representing current state of authenticated Clients. These events have
+event type::
+
+    gui/<name>/clients
+
+where ``<name>`` represents configured Server's name.
+
+Payload for clients events is defined by
+``hat-gui://events.yaml#/$defs/events/clients``.
+
+
 JSON Schemas
 ------------
 
@@ -333,6 +348,13 @@ Juggler
 '''''''
 
 .. literalinclude:: ../schemas_json/juggler.yaml
+    :language: yaml
+
+
+Events
+''''''
+
+.. literalinclude:: ../schemas_json/events.yaml
     :language: yaml
 
 

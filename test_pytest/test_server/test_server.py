@@ -106,6 +106,29 @@ class AdapterManager:
         raise NotImplementedError()
 
 
+class EventerClient(aio.Resource):
+
+    def __init__(self, event_cb=None):
+        self._event_cb = event_cb
+        self._async_group = aio.Group()
+
+    @property
+    def async_group(self):
+        return self._async_group
+
+    @property
+    def status(self):
+        raise NotImplementedError()
+
+    async def register(self, events, with_response=False):
+        if self._event_cb:
+            for event in events:
+                await aio.call(self._event_cb, event)
+
+    async def query(self, params):
+        raise NotImplementedError()
+
+
 @pytest.fixture
 def port():
     return util.get_unused_tcp_port()
@@ -120,15 +143,18 @@ async def test_empty_server(port, ws_addr):
     user_manager = UserManager()
     view_manager = ViewManager()
     adapter_manager = AdapterManager()
+    eventer_client = EventerClient()
 
     server = await hat.gui.server.server.create_server(
         host='127.0.0.1',
         port=port,
+        name='name',
         initial_view=None,
         client_conf=None,
         user_manager=user_manager,
         view_manager=view_manager,
         adapter_manager=adapter_manager,
+        eventer_client=eventer_client,
         autoflush_delay=0)
     client = await juggler.connect(ws_addr)
 
@@ -137,6 +163,7 @@ async def test_empty_server(port, ws_addr):
 
     await client.async_close()
     await server.async_close()
+    await eventer_client.async_close()
 
 
 async def test_login(port, ws_addr):
@@ -149,15 +176,18 @@ async def test_login(port, ws_addr):
     user_manager = UserManager(users)
     view_manager = ViewManager()
     adapter_manager = AdapterManager()
+    eventer_client = EventerClient()
 
     server = await hat.gui.server.server.create_server(
         host='127.0.0.1',
         port=port,
+        name='name',
         initial_view=None,
         client_conf=None,
         user_manager=user_manager,
         view_manager=view_manager,
         adapter_manager=adapter_manager,
+        eventer_client=eventer_client,
         autoflush_delay=0)
     client = await juggler.connect(
         ws_addr,
@@ -201,6 +231,7 @@ async def test_login(port, ws_addr):
 
     await client.async_close()
     await server.async_close()
+    await eventer_client.async_close()
 
 
 async def test_session(port, ws_addr):
@@ -215,15 +246,18 @@ async def test_session(port, ws_addr):
     user_manager = UserManager(users)
     view_manager = ViewManager()
     adapter_manager = AdapterManager(adapters)
+    eventer_client = EventerClient()
 
     server = await hat.gui.server.server.create_server(
         host='127.0.0.1',
         port=port,
+        name='name',
         initial_view=None,
         client_conf=None,
         user_manager=user_manager,
         view_manager=view_manager,
         adapter_manager=adapter_manager,
+        eventer_client=eventer_client,
         autoflush_delay=0)
     client = await juggler.connect(ws_addr)
 
@@ -241,6 +275,7 @@ async def test_session(port, ws_addr):
 
     await client.async_close()
     await server.async_close()
+    await eventer_client.async_close()
 
 
 async def test_request_response(port, ws_addr):
@@ -261,15 +296,18 @@ async def test_request_response(port, ws_addr):
     user_manager = UserManager(users)
     view_manager = ViewManager()
     adapter_manager = AdapterManager(adapters)
+    eventer_client = EventerClient()
 
     server = await hat.gui.server.server.create_server(
         host='127.0.0.1',
         port=port,
+        name='name',
         initial_view=None,
         client_conf=None,
         user_manager=user_manager,
         view_manager=view_manager,
         adapter_manager=adapter_manager,
+        eventer_client=eventer_client,
         autoflush_delay=0)
     client = await juggler.connect(ws_addr)
 
@@ -288,6 +326,7 @@ async def test_request_response(port, ws_addr):
 
     await client.async_close()
     await server.async_close()
+    await eventer_client.async_close()
 
 
 async def test_state(port, ws_addr):
@@ -303,15 +342,18 @@ async def test_state(port, ws_addr):
     user_manager = UserManager(users)
     view_manager = ViewManager()
     adapter_manager = AdapterManager(adapters)
+    eventer_client = EventerClient()
 
     server = await hat.gui.server.server.create_server(
         host='127.0.0.1',
         port=port,
+        name='name',
         initial_view=None,
         client_conf=None,
         user_manager=user_manager,
         view_manager=view_manager,
         adapter_manager=adapter_manager,
+        eventer_client=eventer_client,
         autoflush_delay=0)
     client = await juggler.connect(ws_addr)
 
@@ -336,6 +378,7 @@ async def test_state(port, ws_addr):
 
     await client.async_close()
     await server.async_close()
+    await eventer_client.async_close()
 
 
 async def test_notify(port, ws_addr):
@@ -351,15 +394,18 @@ async def test_notify(port, ws_addr):
     user_manager = UserManager(users)
     view_manager = ViewManager()
     adapter_manager = AdapterManager(adapters)
+    eventer_client = EventerClient()
 
     server = await hat.gui.server.server.create_server(
         host='127.0.0.1',
         port=port,
+        name='name',
         initial_view=None,
         client_conf=None,
         user_manager=user_manager,
         view_manager=view_manager,
         adapter_manager=adapter_manager,
+        eventer_client=eventer_client,
         autoflush_delay=0)
     client = await juggler.connect(
         ws_addr,
@@ -385,3 +431,56 @@ async def test_notify(port, ws_addr):
 
     await client.async_close()
     await server.async_close()
+    await eventer_client.async_close()
+
+
+async def test_clients_event(port, ws_addr):
+    event_queue = aio.Queue()
+
+    name = 'name'
+    users = {('user', 'pass'): hat.gui.server.user.User(name='user',
+                                                        roles={'a', 'b'},
+                                                        view=None)}
+
+    user_manager = UserManager(users)
+    view_manager = ViewManager()
+    adapter_manager = AdapterManager()
+    eventer_client = EventerClient(event_queue.put_nowait)
+
+    server = await hat.gui.server.server.create_server(
+        host='127.0.0.1',
+        port=port,
+        name='name',
+        initial_view=None,
+        client_conf=None,
+        user_manager=user_manager,
+        view_manager=view_manager,
+        adapter_manager=adapter_manager,
+        eventer_client=eventer_client,
+        autoflush_delay=0)
+    client = await juggler.connect(ws_addr)
+
+    assert event_queue.empty()
+
+    await client.send('login', {'name': 'user',
+                                'password': 'pass'})
+
+    event = await event_queue.get()
+    assert event.type == ('gui', name, 'clients')
+    assert len(event.payload.data) == 1
+    assert event.payload.data[0]['remote']
+    assert event.payload.data[0]['user'] == 'user'
+
+    assert event_queue.empty()
+
+    await client.send('logout', None)
+
+    event = await event_queue.get()
+    assert event.type == ('gui', name, 'clients')
+    assert len(event.payload.data) == 0
+
+    assert event_queue.empty()
+
+    await client.async_close()
+    await server.async_close()
+    await eventer_client.async_close()

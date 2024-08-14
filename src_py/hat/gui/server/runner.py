@@ -314,11 +314,13 @@ class ServerRunner(aio.Resource):
         server = await hat.gui.server.server.create_server(
             host=self._conf['address']['host'],
             port=self._conf['address']['port'],
+            name=self._conf['name'],
             initial_view=self._conf.get('initial_view'),
             client_conf=self._conf.get('client'),
             user_manager=self._user_manager,
             view_manager=self._view_manager,
-            adapter_manager=self._adapter_manager)
+            adapter_manager=self._adapter_manager,
+            eventer_client=self._eventer_client)
         _bind_resource(self.async_group, server)
 
     async def _stop(self):
