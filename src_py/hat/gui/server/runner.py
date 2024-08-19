@@ -311,7 +311,7 @@ class ServerRunner(aio.Resource):
         self._events_queue = None
 
         mlog.debug("creating server")
-        server = await hat.gui.server.server.create_server(
+        self._server = await hat.gui.server.server.create_server(
             host=self._conf['address']['host'],
             port=self._conf['address']['port'],
             name=self._conf['name'],
@@ -321,7 +321,7 @@ class ServerRunner(aio.Resource):
             view_manager=self._view_manager,
             adapter_manager=self._adapter_manager,
             eventer_client=self._eventer_client)
-        _bind_resource(self.async_group, server)
+        _bind_resource(self.async_group, self._server)
 
     async def _stop(self):
         if self._server:
