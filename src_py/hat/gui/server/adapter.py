@@ -98,7 +98,7 @@ class AdapterManager(aio.Resource):
         for name, events in adapter_events.items():
             mlog.debug('processing events (adapter: %s; count: %s)',
                        name, len(events))
-            await self._adapters[name].process_events(events)
+            await aio.call(self._adapters[name].process_events, events)
 
 
 async def _bind_resource(async_group, resource):

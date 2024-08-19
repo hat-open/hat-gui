@@ -334,8 +334,9 @@ async def _create_adapter_session_proxy(user, adapter, notify_cb,
     proxy._state = json.Storage()
     proxy._req_queue = aio.Queue(req_queue_size)
 
-    proxy._session = await adapter.create_session(user.name, user.roles,
-                                                  proxy._state, notify_cb)
+    proxy._session = await aio.call(adapter.create_session,
+                                    user.name, user.roles,
+                                    proxy._state, notify_cb)
 
     proxy.async_group.spawn(proxy._session_loop)
 
