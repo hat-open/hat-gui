@@ -72,6 +72,9 @@ GUI Server connects to predefined Event Server address. If this connection
 could not be established or is broken, GUI Server terminates it's process
 execution.
 
+When connecting to Event Server, GUI will use client name
+``gui/<name>`` where `<name>` represents configured component's name.
+
 
 Adapters
 --------
