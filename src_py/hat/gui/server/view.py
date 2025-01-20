@@ -64,8 +64,9 @@ class ViewManager(aio.Resource):
                   view_data.get('schema.yaml') or
                   view_data.get('schema.yml'))
         if schema is not None:
-            repo = json.SchemaRepository(schema)
-            repo.validate(schema['id'], view_conf)
+            repo = json.create_schema_repository(schema)
+            validator = json.DefaultSchemaValidator(repo)
+            validator.validate(schema['id'], view_conf)
 
         return View(name=name,
                     conf=view_conf,
