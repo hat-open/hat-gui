@@ -33,10 +33,11 @@ async function main() {
     const retryDelay = ((u.get('retry_delay', clientConf) || 5) as any) * 1000;
     const pingDelay = ((u.get('ping_delay', clientConf) || 5) as any) * 1000;
     const pingTimeout = ((u.get('ping_timeout', clientConf) || 5) as any) * 1000;
+    const maxSegmentSize = (u.get('max_segment_size', clientConf) || 65536) as any;
 
     app = new juggler.Application(
         'remote', r, [juggler.getDefaultAddress()],
-        retryDelay, pingDelay, pingTimeout
+        retryDelay, pingDelay, pingTimeout, maxSegmentSize
     );
 
     const events: (juggler.Notification | 'disconnected')[] = [];

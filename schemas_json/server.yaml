@@ -107,6 +107,9 @@ properties:
             ping_timeout:
                 type: number
                 default: 5
+            max_segment_size:
+                type: integer
+                default: 65536
 $defs:
     adapter:
         type: object
