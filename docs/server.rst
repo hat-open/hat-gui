@@ -25,7 +25,6 @@ GUI functionality can be defined according to following components:
     folder "Event Server" as EventServer
 
     folder "GUI Frontend" {
-        component Client
         component View
     }
 
@@ -37,7 +36,7 @@ GUI functionality can be defined according to following components:
         component Adapter <<Adapter>> as Adapter
         component "Adapter Session" <<AdapterSession>> as AdapterSession
 
-        component "View Manager" as ViewManager
+        component "User Session" <<UserSession>> as UserSession
     }
 
     folder "File system" {
@@ -52,20 +51,19 @@ GUI functionality can be defined according to following components:
 
     Server <--> AdapterSession
 
-    Server --> ViewManager
+    Server ..> UserSession : create
 
-    ViewManager ..> ViewDir : get
+    Server ..> ViewDir : get
 
-    Server <--> Client
+    Server <--> View
 
-    Server ..> View : send
 
-Functionality is dependent on active connection to Event Server. Adapters,
-Server and View Manager are created when connection with Event Server is
-established and destroyed if this connection is closed. If connection with
-Event Server is closed, GUI will repeatedly try to establish new connection
-with currently active Event Server. If connection to Monitor Server could not
-be established or is closed, GUI terminates its process execution.
+Functionality is dependent on active connection to Event Server. Adapters and
+Server are created when connection with Event Server is established and
+destroyed if this connection is closed. If connection with Event Server is
+closed, GUI will repeatedly try to establish new connection with currently
+active Event Server. If connection to Monitor Server could not be established
+or is closed, GUI terminates its process execution.
 
 GUI Server can also run independently of Monitor Server. In this case,
 GUI Server connects to predefined Event Server address. If this connection
@@ -116,45 +114,18 @@ Adapters available as part of `hat-gui` package:
 Views
 -----
 
-Views are collection of JavaScript code and other frontend resources
+Views are collection of frontend resources (HTML, JavaScript, CSS, ...)
 responsible for graphical representation of adapters state and interaction
 with user. Each view is represented with content of file system directory.
+These files can be obtained by frontend using HTTP GET requests.
 
-`ViewManager` is server side component which is used for loading view's
-resources. Each file inside view's directory (or subdirectory) is identified
-with unix file path relative to view's directory. Each file is read from
-file system and encoded as string based on file extension:
+Server chooses client's view depending on authenticated user and its associated
+roles. Ordered list of all available views is defined as part of GUI Server's
+configuration where each view has its associated roles. Server chooses fist
+view that has at least one role matching one of authenticated user roles.
 
-* `.js`, `.css`, `.txt`
-
-  files are read and encoded as `utf-8` encoded strings
-
-* `.json`, `.yaml`, `.yml`, `.toml`
-
-  files are read as json, yaml or toml files and encoded as `utf-8` json
-  data representation
-
-* `.svg`, `.xml`
-
-  files are read as xml data and encoded as `utf-8` json data
-  representing equivalent virtual tree
-
-  .. todo::
-
-     better definition of transformation between xml and virtual
-     tree data
-
-* all other files
-
-  files are read as binary data and encoded as `base64` strings
-
-Server chooses client's view depending on authenticated user configuration.
-This view's resources and configuration is obtained from `ViewManager`.
-Responsibility of `ViewManager` is to provide current view's data and
-configuration as available on file system in the moment when server issued
-request for these resources. If view directory contains
-`schema.{yaml|yml|json}`, it is used as JSON schema for validating
-view's configuration.
+In addition to views for authenticated users, GUI Server's configuration
+defines single view that is available to non authenticated users.
 
 Views available as part of `hat-gui` package:
 
@@ -163,163 +134,66 @@ Views available as part of `hat-gui` package:
 
    views/login
 
-.. todo::
 
-    future improvements:
+User sessions
+-------------
 
-        * zip archives as view bundles
-        * 'smart' ViewManager with watching view directory and conf for changes
-          and preloading resources on change
+User session is server side resource that represents lifetime of authenticated
+user session. It is uniquely identified with ``SESSION_ID`` that is provided
+as HTTP cookie as part of all HTTP requests sent from frontend to backend.
+
+New user session is created after successful authentication procedure. Lifetime
+of user session is determined by server based on:
+
+* ...
+
+Once user session is closed, future HTTP requests identifying this session
+are considered unauthenticated. All active websocket connections, that are
+associated with session being closed, are closed during closing of session.
 
 
 Backend - frontend communication
 --------------------------------
 
-Request/response
-''''''''''''''''
+REST Communication
+''''''''''''''''''
 
-Juggler request/response communication is used executing system and adapter
-specific actions:
+endpoints
 
-* system actions
-
-  Currently supported system actions are ``login`` and ``logout``,
-  defined by ``hat-gui://juggler.yaml#/$defs/request``. All
-  requests return ``null`` on success and raise exception in case of
-  error.
-
-* adapter specific actions
-
-  Request name is formatted as ``<adapter>/<action>`` where ``<adapter>``
-  is name of adapter instance and ``<action>`` is one of action
-  names supported by referenced adapter instance type. Structure
-  of request data and response results are defined by specific
-  adapter action.
-
-Because AdapterSessions are created only for authenticated users, adapter
-specific actions are available only after successful authentication.
+* '/login'
+* '/logout'
+* '/user'
 
 
-Server state
-''''''''''''
+Juggler Communication
+'''''''''''''''''''''
 
-Juggler state is used for transfer of AdapterSession states from backend to
-frontend. State is single object where keys represent adapter instance names
-and values contain current associated AdapterSession state. If client
-is not authenticated, this object is empty.
+available only to authenticated users
 
+'/ws' endpoint
 
-Server notifications
-''''''''''''''''''''
+* request/response
 
-Juggler notifications enable backend to notify frontend with system and
-adapter specific notifications:
+  Juggler request/response communication is used for executing adapter
+  specific actions. Request name is formatted as ``<adapter>/<action>`` where
+  ``<adapter>`` is name of adapter instance and ``<action>`` is one of action
+  names supported by referenced adapter instance type. Structure of request
+  data and response results are defined by specific adapter action.
 
-* system notifications
+* server state
 
-  Currently supported system notification is ``init`` defined by
-  ``hat-gui://juggler.yaml#/$defs/notification``. Backend can
-  send this notification at any time, informing frontend of changes
-  that should be applied to frontend execution environment.
+  Juggler state is used for transfer of AdapterSession states from backend to
+  frontend. State is single object where keys represent adapter instance names
+  and values contain current associated AdapterSession state.
 
-* adapter specific notifications
+* server notifications
 
-  Notification name is formatted as ``<adapter>/<notification>`` where
-  ``<adapter>`` is name of adapter instance and ``<notification>`` is
+  Juggler notifications enable backend to notify frontend with adapter specific
+  notifications. Notification name is formatted as ``<adapter>/<notification>``
+  where ``<adapter>`` is name of adapter instance and ``<notification>`` is
   notification identification supported by referenced adapter instance
   type. Structure of notification data is defined by specific
   adapter notification.
-
-
-Frontend API
-------------
-
-Initially, each instance of client is considered unauthenticated and not
-initialized. Once client receives server's ``init`` notification, it should
-create new execution environment and initialize view defined as part of
-``init`` data.
-
-View initialization is based on evaluation of JavaScript code from
-view's `index.js`. This code is evaluated inside environment which contains
-global constant ``hat`` which is also bound to ``window`` object. When
-evaluation is finished, environment should contain global values ``init``,
-``vt``, ``destroy``, ``onNotify`` and ``onDisconnected``.
-
-If juggler connection to server is broken, last initialized view remains
-active until new connection is established and new ``init`` notification
-is received. Each time new juggler connection is established, server will
-send new ``init`` notification.
-
-Client bounds juggler connection's server state to default renderer's
-``['remote']`` path. Constant ``hat``, available during execution of
-`index.js`, references object with properties:
-
-* ``conf``
-
-  view's configuration
-
-* ``user``
-
-  authenticated user identifier
-
-* ``roles``
-
-  authenticated user roles
-
-* ``view``
-
-  view's data
-
-* `login(name, password)`
-
-  login method
-
-* `logout()`
-
-  logout method
-
-* `send(adapter, name, data)`
-
-  method for request/response communication
-
-* `getServerAddresses()`
-
-  get GUI server juggler addresses
-
-* `setServerAddresses(addresses)`
-
-  set GUI server juggler addresses
-
-* `disconnect()`
-
-  close current juggler connection to GUI server
-
-When evaluation finishes, environment should contain optional functions:
-
-* ``init()``
-
-  called immediately after evaluation of `index.js` finishes
-
-*  ``vt()``
-
-  called each time global renderer's state changes (this function should
-  return virtual tree data)
-
-* ``destroy()``
-
-  called prior to evaluation of other view's `index.js`
-
-* ``onNotify(adapter, name, data)``
-
-  called each time client receives adapter specific notification from server
-
-* ``onDisconnected()``
-
-  called if juggler connection is broken
-
-.. todo::
-
-  describe `exports` and resulting environment in case of js modules
 
 
 GUI events
@@ -347,13 +221,6 @@ Configuration
     :language: yaml
 
 
-Juggler
-'''''''
-
-.. literalinclude:: ../schemas_json/juggler.yaml
-    :language: yaml
-
-
 Events
 ''''''
 
@@ -361,8 +228,8 @@ Events
     :language: yaml
 
 
-TypeScript definitions
-----------------------
+OpenAPI Schema
+--------------
 
-.. literalinclude:: ../src_js/api.d.ts
-    :language: ts
+.. literalinclude:: ../schemas_openapi/server.yaml
+    :language: yaml

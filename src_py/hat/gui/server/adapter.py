@@ -23,7 +23,7 @@ class ConfAdapterInfo(typing.NamedTuple):
     create_adapter: common.CreateAdapter
 
 
-async def create_conf_adapter_info(adapter_conf: Iterable[json.Data]
+async def create_conf_adapter_info(adapter_conf: json.Data
                                    ) -> ConfAdapterInfo:
     info = common.import_adapter_info(adapter_conf['module'])
     subscription = await aio.call(info.create_subscription, adapter_conf)

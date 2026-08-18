@@ -29,6 +29,13 @@ Args:
 """
 
 
+class User(typing.NamedTuple):
+    """User"""
+    name: str
+    roles: set[str]
+    view: str | None
+
+
 class AdapterSession(aio.Resource):
     """Adapter's single client session"""
 
@@ -58,8 +65,7 @@ class Adapter(aio.Resource):
 
     @abc.abstractmethod
     async def create_session(self,
-                             user: str,
-                             roles: set[str],
+                             user: User,
                              state: json.Storage,
                              notify_cb: NotifyCb,
                              ) -> AdapterSession:

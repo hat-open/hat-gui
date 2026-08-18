@@ -1,0 +1,106 @@
+openapi: 3.2.0
+info:
+    title: hat-gui
+    version: 0.0.1
+paths:
+    '/login/local':
+        post:
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            required:
+                                - name
+                                - password
+                            properties:
+                                name:
+                                    type: string
+                                password:
+                                    type: string
+            responses:
+                '200':
+                    description: success
+                default:
+                    description: error
+                    content:
+                        text/plain:
+                            schema:
+                                type: string
+    '/login/oidc/{name}':
+        parameters:
+          - name: name
+            in: path
+            required: true
+            schema:
+                type: string
+        get:
+            responses:
+                '302':
+                    decription: redirect to oidc OP
+    '/login/oidc/{name}/cb':
+        parameters:
+          - name: name
+            in: path
+            required: true
+            schema:
+                type: string
+        get:
+            parameters:
+              - name: code
+                in: query
+                required: true
+              - name: state
+                in: query
+                required: true
+    '/logout':
+        parameters:
+          - name: SESSION_ID
+            in: cookie
+            required: true
+            schema:
+                type: string
+        post:
+            responses:
+                '200':
+                    description: success
+        get:
+            response:
+                '302':
+                    decription: success
+    '/user':
+        parameters:
+          - name: SESSION_ID
+            in: cookie
+            required: true
+            schema:
+                type: string
+        get:
+            responses:
+                '200':
+                    description: success
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required:
+                                    - name
+                                    - roles
+                                properties:
+                                    name:
+                                        type: string
+                                    roles:
+                                        type: array
+                                        items:
+                                            type: string
+    '/ws':
+        parameters:
+          - name: SESSION_ID
+            in: cookie
+            required: true
+            schema:
+                type: string
+        get:
+            responses:
+                '101':
+                    description: websocket endpoint

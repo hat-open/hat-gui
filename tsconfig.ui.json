@@ -1,8 +1,0 @@
-{
-    "extends": "./tsconfig",
-    "compilerOptions": {
-        "rootDir": "src_js/ui",
-        "outDir": "src_py/hat/gui/server/ui/script"
-    },
-    "include": ["src_js/ui/**/*"]
-}
