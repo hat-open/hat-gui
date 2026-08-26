@@ -1,9 +1,3 @@
-import base64
-
-import pytest
-
-from hat import json
-
 import hat.gui.server.view
 
 
@@ -12,128 +6,71 @@ async def test_empty_view_manager():
 
     assert manager.is_open
 
-    with pytest.raises(Exception):
-        await manager.get('abc')
+    view_name = manager.get_view({'nonexistent'})
+    assert view_name is None
+
+    view_path = manager.get_view_path('nonexistent')
+    assert view_path is None
+
+    await manager.async_close()
+
+    assert manager.is_closed
+
+
+async def test_get_view(tmp_path):
+    view_confs = [{'name': 'abc',
+                   'roles': ['operator'],
+                   'view_path': str(tmp_path / 'abc.js')},
+                  {'name': 'def',
+                   'roles': ['operator', 'admin'],
+                   'view_path': str(tmp_path / 'def.js')},
+                  {'name': 'ghi',
+                   'roles': ['guest'],
+                   'builtin': 'login'}]
+
+    manager = hat.gui.server.view.ViewManager(view_confs)
+
+    view_name = manager.get_view({'admin'})
+    assert view_name == 'def'
+
+    view_name = manager.get_view({'operator'})
+    assert view_name == 'abc'
+
+    view_name = manager.get_view({'operator', 'admin'})
+    assert view_name == 'abc'
+
+    view_name = manager.get_view({'guest'})
+    assert view_name == 'ghi'
+
+    view_name = manager.get_view({'nonexistent'})
+    assert view_name is None
 
     await manager.async_close()
 
 
-@pytest.mark.parametrize('files, data', [
-    ({},
-     {}),
+async def test_get_view_path(tmp_path):
+    view_confs = [{'name': 'abc',
+                   'roles': ['operator'],
+                   'view_path': str(tmp_path / 'abc.js')},
+                  {'name': 'def',
+                   'roles': ['operator', 'admin'],
+                   'view_path': str(tmp_path / 'def.js')},
+                  {'name': 'ghi',
+                   'roles': ['guest'],
+                   'builtin': 'login'}]
 
-    ({'a/b/c.txt': 'abc',
-      'x.js': 'x',
-      'y.css': 'y'},
-     {'a/b/c.txt': 'abc',
-      'x.js': 'x',
-      'y.css': 'y'}),
-
-    ({'a.json': '[1, true, null, {}]'},
-     {'a.json': [1, True, None, {}]}),
-
-    ({'test1.yaml': '1',
-      'test2.yml': '2'},
-     {'test1.yaml': 1,
-      'test2.yml': 2}),
-
-    ({'a.xml': '<a>123</a>',
-      'b.svg': '<b1><b2>123</b2></b1>'},
-     {'a.xml': ['a', '123'],
-      'b.svg': ['b1', ['b2', '123']]}),
-
-    ({'a.bin': '123'},
-     {'a.bin': base64.b64encode(b'123').decode('utf-8')}),
-])
-async def test_view_data(tmp_path, files, data):
-    name = 'name'
-    view_confs = [{'name': name,
-                   'view_path': str(tmp_path),
-                   'conf': 123}]
     manager = hat.gui.server.view.ViewManager(view_confs)
 
-    view = await manager.get(name)
-    assert view.name == name
-    assert view.conf == 123
-    assert view.data == {}
+    view_path = manager.get_view_path('abc')
+    assert view_path == tmp_path / 'abc.js'
 
-    for file_name, file_content in files.items():
-        path = tmp_path / file_name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(file_content)
+    view_path = manager.get_view_path('def')
+    assert view_path == tmp_path / 'def.js'
 
-    view = await manager.get(name)
-    assert view.name == name
-    assert view.conf == 123
-    assert view.data == data
+    view_path = manager.get_view_path('ghi')
+    assert view_path is not None
 
-    await manager.async_close()
-
-    with pytest.raises(Exception):
-        await manager.get(name)
-
-
-async def test_invalid_view_path():
-    name = 'name'
-    view_confs = [{'name': name,
-                   'view_path': None,
-                   'conf': None}]
-    manager = hat.gui.server.view.ViewManager(view_confs)
-
-    with pytest.raises(Exception):
-        await manager.get(name)
-
-    await manager.async_close()
-
-
-async def test_validate_conf(tmp_path):
-    name = 'name'
-    conf_path = tmp_path / 'conf.json'
-    schema_path = tmp_path / 'schema.json'
-    view_confs = [{'name': name,
-                   'view_path': str(tmp_path),
-                   'conf_path': str(conf_path)}]
-    manager = hat.gui.server.view.ViewManager(view_confs)
-
-    with pytest.raises(Exception):
-        await manager.get(name)
-
-    schema = {'id': 'test://schema',
-              'type': 'object',
-              'required': ['abc']}
-    json.encode_file(schema, schema_path)
-
-    with pytest.raises(Exception):
-        await manager.get(name)
-
-    data = {'cba': 123}
-    json.encode_file(data, conf_path)
-
-    with pytest.raises(Exception):
-        await manager.get(name)
-
-    data = {'abc': 321}
-    json.encode_file(data, conf_path)
-
-    view = await manager.get(name)
-    assert view.name == name
-    assert view.conf == data
-    assert view.data == {conf_path.name: data,
-                         schema_path.name: schema}
-
-    await manager.async_close()
-
-
-async def test_builtin_view():
-    name = 'name'
-    view_confs = [{'name': name,
-                   'builtin': 'login',
-                   'conf': None}]
-    manager = hat.gui.server.view.ViewManager(view_confs)
-
-    view = await manager.get(name)
-    assert view.name == name
-    assert view.conf is None
+    view_path = manager.get_view_path('nonexistent')
+    assert view_path is None
 
     await manager.async_close()
