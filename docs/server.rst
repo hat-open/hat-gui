@@ -121,7 +121,7 @@ These files can be obtained by frontend using HTTP GET requests.
 
 Server chooses client's view depending on authenticated user and its associated
 roles. Ordered list of all available views is defined as part of GUI Server's
-configuration where each view has its associated roles. Server chooses fist
+configuration where each view has its associated roles. Server chooses first
 view that has at least one role matching one of authenticated user roles.
 
 In addition to views for authenticated users, GUI Server's configuration

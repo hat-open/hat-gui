@@ -32,7 +32,6 @@ class UserSession(aio.Resource):
         self.__session_id = session_id
         self.__timestamp = timestamp
         self.__active_counter = 0
-        self.__async_group = aio.Group()
 
     @property
     def user(self) -> common.User:
@@ -102,7 +101,7 @@ class UserManager(aio.Resource):
 
     def get_session(self,
                     session_id: UserSessionId
-                    ) -> common.UserSession | None:
+                    ) -> UserSession | None:
         session = self._sessions.get(session_id)
         if session and not session.is_open:
             return

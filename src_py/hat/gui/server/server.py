@@ -132,7 +132,7 @@ class Server(aio.Resource):
 
         return res
 
-    def _process_get_oidc(self, req):
+    async def _process_get_oidc(self, req):
         name = req.match_info['name']
 
         session = self._get_user_session(req)
@@ -190,21 +190,21 @@ class Server(aio.Resource):
 
         raise res_exc
 
-    def _process_post_logout(self, req):
+    async def _process_post_logout(self, req):
         session = self._get_user_session(req)
         if session:
             session.close()
 
         return aiohttp.web.Response()
 
-    def _process_get_logout(self, req):
+    async def _process_get_logout(self, req):
         session = self._get_user_session(req)
         if session:
             session.close()
 
         raise aiohttp.web.HTTPFound('/index.html')
 
-    def _process_get_user(self, req):
+    async def _process_get_user(self, req):
         session = self._get_user_session(req)
         if not session:
             raise aiohttp.web.HTTPBadRequest(text='invalid user session')
@@ -214,7 +214,7 @@ class Server(aio.Resource):
             text=json.encode({'name': session.user.name,
                               'roles': list(session.user.roles)}))
 
-    def _process_get_ws(self, req):
+    async def _process_get_ws(self, req):
         session = self._get_user_session(req)
         if not session:
             raise aiohttp.web.HTTPBadRequest(text='invalid user session')
@@ -252,9 +252,8 @@ class Server(aio.Resource):
 
         return conn.ws
 
-    def _process_get(self, req):
+    async def _process_get(self, req):
         session = self._get_user_session(req)
-
         if session:
             view = session.user.view
 
@@ -266,6 +265,8 @@ class Server(aio.Resource):
                 raise Exception('view not available')
 
             view_path = self._view_manager.get_view_path(view)
+            if not view_path:
+                raise Exception('view not available')
 
         except Exception as e:
             raise aiohttp.web.HTTPInternalServerError(text=str(e))
@@ -277,7 +278,7 @@ class Server(aio.Resource):
                 raise Exception('invalid path')
 
         except Exception as e:
-            aiohttp.web.HTTPBadRequest(text=str(e))
+            raise aiohttp.web.HTTPBadRequest(text=str(e))
 
         return aiohttp.web.FileResponse(path=path)
 
