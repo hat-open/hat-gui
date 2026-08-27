@@ -123,14 +123,10 @@ class Client(aio.Resource):
                     future.set_result(None)
 
     def _notify(self, adapter_name, name, data):
-        try:
-            mlog.debug("sending notification (adapter: %s; name: %s)",
-                       adapter_name, name)
-            self.async_group.spawn(self._conn.notify, f'{adapter_name}/{name}',
-                                   data)
-
-        except Exception:
-            mlog.debug("unsupported request")
+        mlog.debug("sending notification (adapter: %s; name: %s)",
+                   adapter_name, name)
+        self.async_group.spawn(self._conn.notify, f'{adapter_name}/{name}',
+                               data)
 
 
 async def _create_adapter_session_proxy(user, adapter, notify_cb,
