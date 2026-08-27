@@ -1,11 +1,13 @@
+import aiohttp
 import pytest
 
 from hat import aio
-from hat import juggler
+from hat import json
 from hat import util
 import hat.event.common
 
 from hat.gui import common
+from hat.gui.server.view import ViewManager
 import hat.gui.server.server
 import hat.gui.server.user
 
@@ -27,10 +29,6 @@ class AdapterSession(common.AdapterSession):
     @property
     def user(self):
         return self._user
-
-    @property
-    def roles(self):
-        return self._roles
 
     @property
     def state(self):
@@ -61,8 +59,8 @@ class Adapter(common.Adapter):
     async def process_events(self, events):
         raise NotImplementedError()
 
-    async def create_session(self, user, roles, state, notify_cb):
-        session = AdapterSession(user, roles, state, notify_cb,
+    async def create_session(self, user, state, notify_cb):
+        session = AdapterSession(user, state, notify_cb,
                                  self._request_cb)
 
         if self._session_cb:
@@ -73,24 +71,26 @@ class Adapter(common.Adapter):
 
 class UserManager:
 
-    def __init__(self, users={}):
-        self._users = users
+    def __init__(self, create_local_session_cb=None):
+        self._create_local_session_cb = create_local_session_cb
+        self._sessions = {}
 
-    def authenticate(self, name, password):
-        user = self._users.get((name, password))
-        if not user:
-            raise hat.gui.server.user.AuthenticationError()
+    def get_session(self, session_id):
+        return self._sessions.get(session_id)
 
-        return user
+    def get_oidc_url(self, name, state):
+        raise NotImplementedError()
 
+    async def create_local_session(self, name, password):
+        if not self._create_local_session_cb:
+            raise NotImplementedError()
 
-class ViewManager:
+        session = self._create_local_session_cb(name, password)
+        self._sessions[session.session_id] = session
+        return session
 
-    def __init__(self, views={}):
-        self._views = views
-
-    async def get(self, name):
-        return self._views[name]
+    async def create_oidc_session(self, name, code):
+        raise NotImplementedError()
 
 
 class AdapterManager:
@@ -139,9 +139,20 @@ def ws_addr(port):
     return f'ws://127.0.0.1:{port}/ws'
 
 
+@pytest.fixture
+def http_addr(port):
+    return f'http://127.0.0.1:{port}'
+
+
+@pytest.fixture
+async def client_http(http_addr):
+    async with aiohttp.ClientSession(base_url=http_addr) as client:
+        yield client
+
+
 async def test_empty_server(port, ws_addr):
     user_manager = UserManager()
-    view_manager = ViewManager()
+    view_manager = ViewManager([])
     adapter_manager = AdapterManager()
     eventer_client = EventerClient()
 
@@ -150,31 +161,44 @@ async def test_empty_server(port, ws_addr):
         port=port,
         name='name',
         initial_view=None,
-        client_conf=None,
-        user_manager=user_manager,
         view_manager=view_manager,
+        user_manager=user_manager,
         adapter_manager=adapter_manager,
         eventer_client=eventer_client,
         autoflush_delay=0)
-    client = await juggler.connect(ws_addr)
 
-    assert client.is_open
     assert server.is_open
 
-    await client.async_close()
-    await server.async_close()
+    server.close()
+    await server.wait_closed()
+
     await eventer_client.async_close()
 
 
-async def test_login(port, ws_addr):
-    notify_queue = aio.Queue()
+@pytest.mark.parametrize('success', [True, False])
+async def test_login_local(port, client_http, success):
+    username = 'u1'
+    request_username = 'abc_u1'
+    request_passwd = '123xyz'
+    session_id = 'abcxyz'
+    timestamp = 12345
+    user = user = common.User(name=username,
+                              roles=['r1', 'r2'],
+                              view='v_u1')
 
-    users = {('user', 'pass'): hat.gui.server.user.User(name='user',
-                                                        roles={'a'},
-                                                        view=None)}
+    def on_create_local_session(name, password):
+        assert name == request_username
+        assert password == request_passwd
 
-    user_manager = UserManager(users)
-    view_manager = ViewManager()
+        if success:
+            return hat.gui.server.user.UserSession(user=user,
+                                                   session_id=session_id,
+                                                   timestamp=timestamp)
+
+        raise Exception()
+
+    user_manager = UserManager(create_local_session_cb=on_create_local_session)
+    view_manager = ViewManager([])
     adapter_manager = AdapterManager()
     eventer_client = EventerClient()
 
@@ -183,69 +207,48 @@ async def test_login(port, ws_addr):
         port=port,
         name='name',
         initial_view=None,
-        client_conf=None,
-        user_manager=user_manager,
         view_manager=view_manager,
+        user_manager=user_manager,
         adapter_manager=adapter_manager,
         eventer_client=eventer_client,
         autoflush_delay=0)
-    client = await juggler.connect(
-        ws_addr,
-        lambda client, name, data: notify_queue.put_nowait((name, data)))
 
-    name, data = await notify_queue.get()
-    assert name == 'init'
-    assert data == {'user': None,
-                    'roles': [],
-                    'view': None,
-                    'conf': None}
+    user_login = {'name': request_username,
+                  'password': request_passwd}
+    async with client_http.post('/login/local',
+                                data=json.encode(user_login)) as resp:
+        if success:
+            assert resp.status == 200
+            assert resp.cookies.get('SESSION_ID').value == session_id
+            # assert int(resp.cookies.get('SESSION_ID').get('max-age')) == (
+            #     60 * 60 * 24 * 365)
 
-    with pytest.raises(Exception):
-        await client.send('login', {'name': 'abc',
-                                    'password': 'bca'})
+        else:
+            resp.status == 400
 
-    with pytest.raises(Exception):
-        await client.send('login', {'name': 'user',
-                                    'password': 'abc'})
-
-    assert notify_queue.empty()
-
-    await client.send('login', {'name': 'user',
-                                'password': 'pass'})
-
-    name, data = await notify_queue.get()
-    assert name == 'init'
-    assert data == {'user': 'user',
-                    'roles': ['a'],
-                    'view': None,
-                    'conf': None}
-
-    await client.send('logout', None)
-
-    name, data = await notify_queue.get()
-    assert name == 'init'
-    assert data == {'user': None,
-                    'roles': [],
-                    'view': None,
-                    'conf': None}
-
-    await client.async_close()
     await server.async_close()
     await eventer_client.async_close()
 
 
-async def test_session(port, ws_addr):
-    session_queue = aio.Queue()
+@pytest.mark.parametrize('logout_method', ['get', 'post'])
+async def test_logout(port, client_http, logout_method):
+    user_session_queue = aio.Queue()
+    username = 'u1'
+    session_id = 'abcxyz'
+    user = user = common.User(name=username,
+                              roles=['r1', 'r2'],
+                              view='v_u1')
 
-    users = {('user', 'pass'): hat.gui.server.user.User(name='user',
-                                                        roles={'a', 'b'},
-                                                        view=None)}
+    def on_create_local_session(name, password):
+        session = hat.gui.server.user.UserSession(user=user,
+                                                  session_id=session_id,
+                                                  timestamp=12345)
+        user_session_queue.put_nowait(session)
+        return session
 
-    adapters = {'a1': Adapter(session_cb=session_queue.put_nowait)}
-
-    user_manager = UserManager(users)
-    view_manager = ViewManager()
-    adapter_manager = AdapterManager(adapters)
+    user_manager = UserManager(create_local_session_cb=on_create_local_session)
+    view_manager = ViewManager([])
+    adapter_manager = AdapterManager()
     eventer_client = EventerClient()
 
     server = await hat.gui.server.server.create_server(
@@ -253,49 +256,60 @@ async def test_session(port, ws_addr):
         port=port,
         name='name',
         initial_view=None,
-        client_conf=None,
-        user_manager=user_manager,
         view_manager=view_manager,
+        user_manager=user_manager,
         adapter_manager=adapter_manager,
         eventer_client=eventer_client,
         autoflush_delay=0)
-    client = await juggler.connect(ws_addr)
 
-    await client.send('login', {'name': 'user',
-                                'password': 'pass'})
-    session = await session_queue.get()
+    # logout session before created
+    async with getattr(client_http, logout_method)(
+            '/logout',
+            cookies={'SESSION_ID': 'abcxyz'},
+            allow_redirects=False) as resp:
+        assert resp.status == {'get': 302,
+                               'post': 200}[logout_method]
 
-    assert session.is_open
-    assert session.user == 'user'
-    assert session.roles == {'a', 'b'}
+    user_login = {'name': username,
+                  'password': 'abcxyz'}
+    async with client_http.post('/login/local',
+                                data=json.encode(user_login)) as resp:
+        assert resp.status == 200
 
-    await client.send('logout', None)
+    user_session = await user_session_queue.get()
+    assert user_session.is_open
 
-    assert not session.is_open
+    async with getattr(client_http, logout_method)(
+            '/logout',
+            cookies={'SESSION_ID': session_id},
+            allow_redirects=False) as resp:
+        assert resp.status == {'get': 302,
+                               'post': 200}[logout_method]
 
-    await client.async_close()
+    assert user_session.is_closing
+    await user_session.wait_closed()
+
     await server.async_close()
     await eventer_client.async_close()
 
 
-async def test_request_response(port, ws_addr):
-    session_queue = aio.Queue()
+async def test_get_user(port, client_http):
+    username = 'u1'
+    session_id = 'abcxyz'
+    roles = ['r1', 'r2']
+    user = user = common.User(name=username,
+                              roles=roles,
+                              view='v_u1')
 
-    def on_request(name, data):
-        assert name == 'abc3'
-        assert data == 123
-        return 321
+    def on_create_local_session(name, password):
+        session = hat.gui.server.user.UserSession(user=user,
+                                                  session_id=session_id,
+                                                  timestamp=12345)
+        return session
 
-    users = {('user', 'pass'): hat.gui.server.user.User(name='user',
-                                                        roles={'a', 'b'},
-                                                        view=None)}
-
-    adapters = {'a1': Adapter(session_cb=session_queue.put_nowait,
-                              request_cb=on_request)}
-
-    user_manager = UserManager(users)
-    view_manager = ViewManager()
-    adapter_manager = AdapterManager(adapters)
+    user_manager = UserManager(create_local_session_cb=on_create_local_session)
+    view_manager = ViewManager([])
+    adapter_manager = AdapterManager()
     eventer_client = EventerClient()
 
     server = await hat.gui.server.server.create_server(
@@ -303,184 +317,232 @@ async def test_request_response(port, ws_addr):
         port=port,
         name='name',
         initial_view=None,
-        client_conf=None,
-        user_manager=user_manager,
         view_manager=view_manager,
+        user_manager=user_manager,
         adapter_manager=adapter_manager,
         eventer_client=eventer_client,
         autoflush_delay=0)
-    client = await juggler.connect(ws_addr)
 
-    await client.send('login', {'name': 'user',
-                                'password': 'pass'})
-    await session_queue.get()
+    # get user before login
+    async with client_http.get('/user',
+                               cookies={'SESSION_ID': session_id}) as resp:
+        assert resp.status == 400
 
-    with pytest.raises(Exception):
-        await client.send('abc1', None)
+    user_login = {'name': username,
+                  'password': 'abcxyz'}
+    async with client_http.post('/login/local',
+                                data=json.encode(user_login)) as resp:
+        assert resp.status == 200
 
-    with pytest.raises(Exception):
-        await client.send('xyz/abc2', None)
+    async with client_http.get('/user',
+                               cookies={'SESSION_ID': session_id}) as resp:
+        assert resp.status == 200
+        data = await resp.json()
+        assert data == {'name': username,
+                        'roles': roles}
 
-    result = await client.send('a1/abc3', 123)
-    assert result == 321
-
-    await client.async_close()
     await server.async_close()
     await eventer_client.async_close()
 
 
-async def test_state(port, ws_addr):
-    session_queue = aio.Queue()
-    state_queue = aio.Queue()
-
-    users = {('user', 'pass'): hat.gui.server.user.User(name='user',
-                                                        roles={'a', 'b'},
-                                                        view=None)}
-
-    adapters = {'a1': Adapter(session_cb=session_queue.put_nowait)}
-
-    user_manager = UserManager(users)
-    view_manager = ViewManager()
-    adapter_manager = AdapterManager(adapters)
-    eventer_client = EventerClient()
-
-    server = await hat.gui.server.server.create_server(
-        host='127.0.0.1',
-        port=port,
-        name='name',
-        initial_view=None,
-        client_conf=None,
-        user_manager=user_manager,
-        view_manager=view_manager,
-        adapter_manager=adapter_manager,
-        eventer_client=eventer_client,
-        autoflush_delay=0)
-    client = await juggler.connect(ws_addr)
-
-    client.state.register_change_cb(state_queue.put_nowait)
-    if client.state.data is not None:
-        state_queue.put_nowait(client.state.data)
-
-    state = await state_queue.get()
-    assert state == {}
-
-    await client.send('login', {'name': 'user',
-                                'password': 'pass'})
-    session = await session_queue.get()
-
-    state = await state_queue.get()
-    assert state == {'a1': None}
-
-    session.state.set([], 123)
-
-    state = await state_queue.get()
-    assert state == {'a1': 123}
-
-    await client.async_close()
-    await server.async_close()
-    await eventer_client.async_close()
-
-
-async def test_notify(port, ws_addr):
-    session_queue = aio.Queue()
-    notify_queue = aio.Queue()
-
-    users = {('user', 'pass'): hat.gui.server.user.User(name='user',
-                                                        roles={'a', 'b'},
-                                                        view=None)}
-
-    adapters = {'a1': Adapter(session_cb=session_queue.put_nowait)}
-
-    user_manager = UserManager(users)
-    view_manager = ViewManager()
-    adapter_manager = AdapterManager(adapters)
-    eventer_client = EventerClient()
-
-    server = await hat.gui.server.server.create_server(
-        host='127.0.0.1',
-        port=port,
-        name='name',
-        initial_view=None,
-        client_conf=None,
-        user_manager=user_manager,
-        view_manager=view_manager,
-        adapter_manager=adapter_manager,
-        eventer_client=eventer_client,
-        autoflush_delay=0)
-    client = await juggler.connect(
-        ws_addr,
-        lambda client, name, data: notify_queue.put_nowait((name, data)))
-
-    name, data = await notify_queue.get()
-    assert name == 'init'
-    assert data['user'] is None
-
-    await client.send('login', {'name': 'user',
-                                'password': 'pass'})
-    session = await session_queue.get()
-
-    name, data = await notify_queue.get()
-    assert name == 'init'
-    assert data['user'] == 'user'
-
-    session.notify_cb('abc', 123)
-
-    name, data = await notify_queue.get()
-    assert name == 'a1/abc'
-    assert data == 123
-
-    await client.async_close()
-    await server.async_close()
-    await eventer_client.async_close()
-
-
-async def test_clients_event(port, ws_addr):
+async def test_get_ws(port, client_http, ws_addr):
     event_queue = aio.Queue()
+    username = 'u1'
+    session_id = 'abcxyz'
+    roles = ['r1', 'r2']
+    user = user = common.User(name=username,
+                              roles=roles,
+                              view='v_u1')
 
-    name = 'name'
-    users = {('user', 'pass'): hat.gui.server.user.User(name='user',
-                                                        roles={'a', 'b'},
-                                                        view=None)}
+    def on_create_local_session(name, password):
+        session = hat.gui.server.user.UserSession(user=user,
+                                                  session_id=session_id,
+                                                  timestamp=12345)
+        return session
 
-    user_manager = UserManager(users)
-    view_manager = ViewManager()
+    user_manager = UserManager(create_local_session_cb=on_create_local_session)
+    view_manager = ViewManager([])
     adapter_manager = AdapterManager()
-    eventer_client = EventerClient(event_queue.put_nowait)
+    eventer_client = EventerClient(event_cb=event_queue.put_nowait)
 
     server = await hat.gui.server.server.create_server(
         host='127.0.0.1',
         port=port,
         name='name',
         initial_view=None,
-        client_conf=None,
-        user_manager=user_manager,
         view_manager=view_manager,
+        user_manager=user_manager,
         adapter_manager=adapter_manager,
         eventer_client=eventer_client,
         autoflush_delay=0)
-    client = await juggler.connect(ws_addr)
 
-    assert event_queue.empty()
+    # get ws before login
+    client_http.cookie_jar.update_cookies({'SESSION_ID': session_id})
+    with pytest.raises(Exception):
+        await client_http.ws_connect(ws_addr)
 
-    await client.send('login', {'name': 'user',
-                                'password': 'pass'})
+    user_login = {'name': username,
+                  'password': 'abcxyz'}
+    async with client_http.post('/login/local',
+                                data=json.encode(user_login)) as resp:
+        assert resp.status == 200
+
+    client_http.cookie_jar.update_cookies({'SESSION_ID': session_id})
+    async with client_http.ws_connect(ws_addr) as ws:
+        assert not ws.closed
+
+        event = await event_queue.get()
+        assert event.type == ('gui', 'name', 'clients')
+        assert len(event.payload.data) == 1
+        assert event.payload.data[0]['remote'] == '127.0.0.1'
+        assert event.payload.data[0]['user'] == username
 
     event = await event_queue.get()
-    assert event.type == ('gui', name, 'clients')
-    assert len(event.payload.data) == 1
-    assert event.payload.data[0]['remote']
-    assert event.payload.data[0]['user'] == 'user'
-
-    assert event_queue.empty()
-
-    await client.send('logout', None)
-
-    event = await event_queue.get()
-    assert event.type == ('gui', name, 'clients')
+    assert event.type == ('gui', 'name', 'clients')
     assert len(event.payload.data) == 0
 
-    assert event_queue.empty()
+    await server.async_close()
+    await eventer_client.async_close()
 
-    await client.async_close()
+
+async def test_get(port, client_http, tmp_path):
+    view_path = tmp_path / 'v1'
+    view_path.mkdir()
+    file_path = view_path / 'view_file.html'
+    file_content = b'some random bytes'
+    file_path.write_bytes(file_content)
+    view_conf = {'name': 'v1',
+                 'roles': ['r1', 'r2'],
+                 'view_path': str(view_path)}
+    view_manager = ViewManager([view_conf])
+
+    username = 'u1'
+    session_id = 'abcxyz'
+    roles = ['r1', 'r2']
+    user = user = common.User(name=username,
+                              roles=roles,
+                              view=view_conf['name'])
+
+    def on_create_local_session(name, password):
+        session = hat.gui.server.user.UserSession(user=user,
+                                                  session_id=session_id,
+                                                  timestamp=12345)
+        return session
+
+    user_manager = UserManager(create_local_session_cb=on_create_local_session)
+    adapter_manager = AdapterManager()
+    eventer_client = EventerClient()
+
+    server = await hat.gui.server.server.create_server(
+        host='127.0.0.1',
+        port=port,
+        name='name',
+        initial_view=None,
+        view_manager=view_manager,
+        user_manager=user_manager,
+        adapter_manager=adapter_manager,
+        eventer_client=eventer_client,
+        autoflush_delay=0)
+
+    user_login = {'name': username,
+                  'password': 'abcxyz'}
+    async with client_http.post('/login/local',
+                                data=json.encode(user_login)) as resp:
+        assert resp.status == 200
+
+    async with client_http.get('view_file.html',
+                               cookies={'SESSION_ID': session_id}) as resp:
+        assert resp.status == 200
+        resp_content = await resp.read()
+        assert resp_content == file_content
+
+    # get with wrong session_id (no initial view)
+    async with client_http.get('view_file.html') as resp:
+        assert resp.status == 500
+
+    # get file that does not exist
+    async with client_http.get('non_existing_file.html',
+                               cookies={'SESSION_ID': session_id}) as resp:
+        assert resp.status == 404
+
+    await server.async_close()
+    await eventer_client.async_close()
+
+
+async def test_initial_view(port, client_http, tmp_path):
+    view_path = tmp_path / 'v1'
+    view_path.mkdir()
+    view_file_content = b'some random bytes'
+    (view_path / 'index.html').write_bytes(view_file_content)
+    view_conf = {'name': 'v1',
+                 'roles': ['r1', 'r2'],
+                 'view_path': str(view_path)}
+
+    init_view_path = tmp_path / 'v_init'
+    init_view_path.mkdir()
+    init_view_file_content = b'some random bytes'
+    (init_view_path / 'index.html').write_bytes(
+        init_view_file_content)
+    init_view_conf = {'name': 'v_init',
+                      'roles': [],
+                      'view_path': str(init_view_path)}
+    view_manager = ViewManager([view_conf, init_view_conf])
+
+    username = 'u1'
+    session_id = 'abcxyz'
+    roles = ['r1', 'r2']
+    user = user = common.User(name=username,
+                              roles=roles,
+                              view=view_conf['name'])
+
+    def on_create_local_session(name, password):
+        session = hat.gui.server.user.UserSession(user=user,
+                                                  session_id=session_id,
+                                                  timestamp=12345)
+        return session
+
+    user_manager = UserManager(create_local_session_cb=on_create_local_session)
+    adapter_manager = AdapterManager()
+    eventer_client = EventerClient()
+
+    server = await hat.gui.server.server.create_server(
+        host='127.0.0.1',
+        port=port,
+        name='name',
+        initial_view='v_init',
+        view_manager=view_manager,
+        user_manager=user_manager,
+        adapter_manager=adapter_manager,
+        eventer_client=eventer_client,
+        autoflush_delay=0)
+
+    # before user login
+    async with client_http.get('index.html') as resp:
+        assert resp.status == 200
+        resp_content = await resp.read()
+        assert resp_content == init_view_file_content
+
+    user_login = {'name': username,
+                  'password': 'abcxyz'}
+    async with client_http.post('/login/local',
+                                data=json.encode(user_login)) as resp:
+        assert resp.status == 200
+
+    async with client_http.get('index.html',
+                               cookies={'SESSION_ID': session_id}) as resp:
+        assert resp.status == 200
+        resp_content = await resp.read()
+        assert resp_content == view_file_content
+
+    # get with wrong session_id (no initial view)
+    async with client_http.get('index.html') as resp:
+        assert resp.status == 200
+        resp_content = await resp.read()
+        assert resp_content == init_view_file_content
+
+    # get file that does not exist
+    async with client_http.get('non_existing_file.html') as resp:
+        assert resp.status == 404
+
     await server.async_close()
     await eventer_client.async_close()
