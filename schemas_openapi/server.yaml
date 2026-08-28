@@ -53,6 +53,9 @@ paths:
               - name: state
                 in: query
                 required: true
+            responses:
+                '302':
+                    decription: redirect to oidc OP
     '/logout':
         parameters:
           - name: SESSION_ID
