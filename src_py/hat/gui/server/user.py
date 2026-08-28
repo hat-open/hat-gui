@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 from pathlib import Path
 import asyncio
+import base64
 import collections
 import hashlib
 import logging
@@ -8,6 +9,9 @@ import os
 import secrets
 import time
 import typing
+import urllib.parse
+
+import aiohttp
 
 from hat import aio
 from hat import json
@@ -109,7 +113,18 @@ class UserManager(aio.Resource):
         return session
 
     def get_oidc_url(self, name: str, state: str) -> str:
-        raise NotImplementedError()
+        oidc_conf = self._users_conf['oidc'][name]
+
+        url = urllib.parse.urlsplit(oidc_conf['authorize_url'])
+
+        query = urllib.parse.parse_qs(url.query)
+        query['response_type'] = 'code'
+        query['client_id'] = oidc_conf['client_id']
+        query['redirect_uri'] = _get_oidc_redirect_url(oidc_conf)
+        query['scope'] = ' '.join(['openid', *oidc_conf['scope']])
+        query['state'] = state
+
+        return url._replace(query=urllib.parse.urlencode(query)).geturl()
 
     async def create_local_session(self,
                                    name: str,
@@ -151,7 +166,54 @@ class UserManager(aio.Resource):
                                   name: str,
                                   code: str
                                   ) -> UserSession:
-        raise NotImplementedError()
+        oidc_conf = self._users_conf['oidc'][name]
+
+        auth = aiohttp.BasicAuth(oidc_conf['auth']['login'],
+                                 oidc_conf['auth'].get('password', ''))
+
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+
+        query = urllib.parse.urlencode({
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': _get_oidc_redirect_url(oidc_conf)})
+
+        async with aiohttp.ClientSession(auth=auth) as session:
+            async with session.post(
+                    oidc_conf['token_url'],
+                    headers=headers,
+                    data=query.encode('utf-8')) as res:
+                if res.status != 200:
+                    raise Exception('request token error')
+
+                data = await res.json()
+
+        claims = json.decode(
+            _base64url_decode(data['id_token'].split('.')[1]).decode('utf-8'))
+
+        name = claims[oidc_conf['claims']['name']]
+        if not isinstance(name, str):
+            raise TypeError('invalid name type')
+
+        roles = set()
+        for i in claims[oidc_conf['claims']['roles']]:
+            role = oidc_conf['roles'].get(i)
+            if role:
+                roles.add(role)
+
+        view = self._view_manager.get_view(roles)
+
+        user = common.User(name=name,
+                           roles=roles,
+                           view=view)
+
+        session = _OidcUserSession(user=user,
+                                   session_id=self._generate_session_id(),
+                                   timestamp=time.time())
+
+        await self._add_session(session)
+
+        return session
 
     async def _run_loop(self, initialized_event):
         tmp_snapshot_path = self._snapshot_path.with_suffix(
@@ -353,11 +415,37 @@ def _decode_local_session(local_user_confs: dict[str, json.Data],
 
 
 def _encode_oidc_session(session: _OidcUserSession) -> json.Data:
-    raise NotImplementedError()
+    return {'user': {'name': session.user.name,
+                     'roles': list(session.user.roles)},
+            'session_id': session.session_id,
+            'timestamp': session.timestamp}
 
 
 def _decode_oidc_session(oidc_confs: dict[str, json.Data],
                          view_manager: ViewManager,
                          data: json.Data
                          ) -> _OidcUserSession:
-    raise NotImplementedError()
+    name = data['user']['name']
+    roles = set(data['user']['roles'])
+    view = view_manager.get_view(roles)
+
+    user = common.User(name=name,
+                       roles=roles,
+                       view=view)
+
+    return _OidcUserSession(user=user,
+                            session_id=data['session_id'],
+                            timestamp=data['timestamp'])
+
+
+def _base64url_decode(data: str) -> bytes:
+    padding = '=' * (-len(data) % 4)
+    return base64.urlsafe_b64decode(data + padding)
+
+
+def _get_oidc_redirect_url(oidc_conf):
+    return urllib.parse.urlsplit(
+        oidc_conf['local_url'])._replace(
+            path=f"/login/oidc/{oidc_conf['name']}/cb",
+            query='',
+            fragment='').geturl()
