@@ -143,7 +143,7 @@ properties:
                             properties:
                                 login:
                                     type: string
-                                login:
+                                password:
                                     type: string
                         claims:
                             type: object

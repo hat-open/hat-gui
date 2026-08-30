@@ -69,8 +69,12 @@ async def create_manager(users_conf: json.Data,
     manager = UserManager()
     manager._users_conf = users_conf
     manager._view_manager = view_manager
-    manager._local_user_confs = {i['name']: i
-                                 for i in users_conf['local']['users']}
+    manager._local_user_confs = {
+        i['name']: i for i in users_conf['local']['users']
+    } if 'local' in users_conf else {}
+    manager._oidc_user_confs = {
+        i['name']: i for i in users_conf['oidc']
+    } if 'oidc' in users_conf else {}
     manager._sessions = {}
     manager._snapshot_path = Path(users_conf['snapshot_path'])
     manager._executor = aio.Executor(log_exceptions=False)
@@ -80,13 +84,14 @@ async def create_manager(users_conf: json.Data,
         initialized_event = asyncio.Event()
         manager.async_group.spawn(manager._run_loop, initialized_event)
 
-        data = await manager._executor.spawn(json.decode_file,
-                                             manager._snapshot_path)
+        if manager._snapshot_path.exists():
+            data = await manager._executor.spawn(json.decode_file,
+                                                 manager._snapshot_path)
 
-        for session in _decode_sessions(users_conf=users_conf,
-                                        view_manager=view_manager,
-                                        data=data):
-            await manager._add_session(session)
+            for session in _decode_sessions(users_conf=users_conf,
+                                            view_manager=view_manager,
+                                            data=data):
+                await manager._add_session(session)
 
         initialized_event.set()
 
@@ -113,7 +118,9 @@ class UserManager(aio.Resource):
         return session
 
     def get_oidc_url(self, name: str, state: str) -> str:
-        oidc_conf = self._users_conf['oidc'][name]
+        oidc_conf = self._oidc_user_confs.get(name)
+        if not oidc_conf:
+            raise Exception("invalid name")
 
         url = urllib.parse.urlsplit(oidc_conf['authorize_url'])
 
@@ -166,7 +173,9 @@ class UserManager(aio.Resource):
                                   name: str,
                                   code: str
                                   ) -> UserSession:
-        oidc_conf = self._users_conf['oidc'][name]
+        oidc_conf = self._oidc_user_confs.get(name)
+        if not oidc_conf:
+            raise Exception("invalid name")
 
         auth = aiohttp.BasicAuth(oidc_conf['auth']['login'],
                                  oidc_conf['auth'].get('password', ''))
@@ -238,9 +247,11 @@ class UserManager(aio.Resource):
                 data = _encode_sessions(session
                                         for session in self._sessions.values()
                                         if session.is_open)
-                await self._executor(json.encode_file, data, tmp_snapshot_path)
-                await self._executor(os.replace, tmp_snapshot_path,
-                                     self._snapshot_path)
+                await self._executor.spawn(
+                    json.encode_file, data, tmp_snapshot_path,
+                    json.Format(self._snapshot_path.suffix.lstrip('.')))
+                await self._executor.spawn(
+                    os.replace, tmp_snapshot_path, self._snapshot_path)
 
             except Exception as e:
                 mlog.error("error creating snapshot: %s", e, exc_info=e)
@@ -363,8 +374,10 @@ def _decode_sessions(users_conf: json.Data,
                      view_manager: ViewManager,
                      data: json.Data
                      ) -> Iterable[UserSession]:
-    local_user_confs = {local_user_conf['name']: local_user_conf
-                        for local_user_conf in users_conf['local']['users']}
+    local_user_confs = {
+        local_user_conf['name']: local_user_conf
+        for local_user_conf in users_conf['local']['users']
+    } if 'local' in users_conf else {}
     for i in data['local']:
         try:
             yield _decode_local_session(local_user_confs=local_user_confs,
@@ -374,8 +387,10 @@ def _decode_sessions(users_conf: json.Data,
         except Exception as e:
             mlog.warning("error decoding local session: %s", e, exc_info=e)
 
-    oidc_confs = {oidc_conf['name']: oidc_conf
-                  for oidc_conf in users_conf['oidc']}
+    oidc_confs = {
+        oidc_conf['name']: oidc_conf
+        for oidc_conf in users_conf['oidc']
+    } if 'oidc' in users_conf else {}
     for i in data['oidc']:
         try:
             yield _decode_oidc_session(oidc_confs=oidc_confs,
@@ -402,7 +417,7 @@ def _decode_local_session(local_user_confs: dict[str, json.Data],
     if not local_user_conf:
         raise Exception('user not available')
 
-    roles = set(data['roles'])
+    roles = set(local_user_conf['roles'])
     view = view_manager.get_view(roles)
 
     user = common.User(name=name,
