@@ -5,6 +5,7 @@ from hat import aio
 from hat import json
 import hat.event.common
 
+from hat.gui import common
 from hat.gui.adapters.latest import info
 
 
@@ -144,12 +145,16 @@ async def test_create_session():
         raise NotImplementedError()
 
     state1 = json.Storage()
-    session1 = await adapter.create_session('user1', {'users'}, state1,
-                                            notify_cb)
+    user1 = common.User(name='user1',
+                        roles={'users'},
+                        view=None)
+    session1 = await adapter.create_session(user1, state1, notify_cb)
 
     state2 = json.Storage()
-    session2 = await adapter.create_session('user2', {'not users'}, state2,
-                                            notify_cb)
+    user2 = common.User(name='user2',
+                        roles={'not users'},
+                        view=None)
+    session2 = await adapter.create_session(user2, state2, notify_cb)
 
     assert session1.is_open
     assert session2.is_open
@@ -185,8 +190,10 @@ async def test_event_payload():
         raise NotImplementedError()
 
     state = json.Storage()
-    session = await adapter.create_session('user1', {'users'}, state,
-                                           notify_cb)
+    user = common.User(name='user1',
+                       roles={'users'},
+                       view=None)
+    session = await adapter.create_session(user, state, notify_cb)
 
     assert state.data == {}
 

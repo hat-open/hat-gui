@@ -62,11 +62,11 @@ class LatestAdapter(common.Adapter):
 
         self._state.set([], {**self._state.data, **data})
 
-    async def create_session(self, user, roles, state, notify_cb):
+    async def create_session(self, user, state, notify_cb):
         session = LatestSession()
         session._async_group = self.async_group.create_subgroup()
 
-        is_authorized = not roles.isdisjoint(self._authorized_roles)
+        is_authorized = not user.roles.isdisjoint(self._authorized_roles)
 
         if is_authorized:
             change_cb = functools.partial(state.set, [])
