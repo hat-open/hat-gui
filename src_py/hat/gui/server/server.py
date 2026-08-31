@@ -193,7 +193,7 @@ class Server(aio.Resource):
                 code=code)
 
         except Exception as e:
-            mlog.error("error processing GET /oidc/%s", name, e, exc_info=e)
+            mlog.error("error processing GET /oidc/%s", name, exc_info=e)
 
             raise aiohttp.web.HTTPBadRequest(text=str(e))
 
@@ -216,7 +216,7 @@ class Server(aio.Resource):
         except Exception as e:
             mlog.error("error processing POST /logout: %s", e, exc_info=e)
 
-            aiohttp.web.HTTPBadRequest(text=str(e))
+            raise aiohttp.web.HTTPBadRequest(text=str(e))
 
         session.close()
 
@@ -233,7 +233,7 @@ class Server(aio.Resource):
         except Exception as e:
             mlog.error("error processing GET /logout: %s", e, exc_info=e)
 
-            aiohttp.web.HTTPBadRequest(text=str(e))
+            raise aiohttp.web.HTTPBadRequest(text=str(e))
 
         session.close()
 
@@ -250,7 +250,7 @@ class Server(aio.Resource):
         except Exception as e:
             mlog.error("error processing GET /user: %s", e, exc_info=e)
 
-            aiohttp.web.HTTPBadRequest(text=str(e))
+            raise aiohttp.web.HTTPBadRequest(text=str(e))
 
         return aiohttp.web.Response(
             content_type='application/json',
@@ -268,7 +268,7 @@ class Server(aio.Resource):
         except Exception as e:
             mlog.error("error processing GET /ws: %s", e, exc_info=e)
 
-            aiohttp.web.HTTPBadRequest(text=str(e))
+            raise aiohttp.web.HTTPBadRequest(text=str(e))
 
         try:
             mlog.debug("creating juggler connection")

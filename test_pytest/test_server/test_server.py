@@ -289,8 +289,7 @@ async def test_logout(port, client_http, logout_method):
             '/logout',
             cookies={'SESSION_ID': 'abcxyz'},
             allow_redirects=False) as resp:
-        assert resp.status == {'get': 302,
-                               'post': 200}[logout_method]
+        assert resp.status == 400
 
     user_login = {'name': username,
                   'password': 'abcxyz'}
