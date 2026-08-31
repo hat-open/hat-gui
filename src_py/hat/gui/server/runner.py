@@ -58,7 +58,7 @@ class MainRunner(aio.Resource):
             view_confs=self._conf['views'])
         _bind_resource(self.async_group, self._view_manager)
 
-        self._user_manager = hat.gui.server.user.create_manager(
+        self._user_manager = await hat.gui.server.user.create_manager(
             users_conf=self._conf['users'],
             view_manager=self._view_manager)
         _bind_resource(self.async_group, self._user_manager)
