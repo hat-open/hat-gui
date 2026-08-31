@@ -93,6 +93,20 @@ class UserManager:
         raise NotImplementedError()
 
 
+class UserSession(hat.gui.server.user.UserSession):
+
+    def __init__(self, user, session_id, timestamp):
+        super().__init__(user=user,
+                         session_id=session_id,
+                         timestamp=timestamp)
+
+        self._async_group = aio.Group()
+
+    @property
+    def async_group(self):
+        return self._async_group
+
+
 class AdapterManager:
 
     def __init__(self, adapters={}):
@@ -191,9 +205,9 @@ async def test_login_local(port, client_http, success):
         assert password == request_passwd
 
         if success:
-            return hat.gui.server.user.UserSession(user=user,
-                                                   session_id=session_id,
-                                                   timestamp=timestamp)
+            return UserSession(user=user,
+                               session_id=session_id,
+                               timestamp=timestamp)
 
         raise Exception()
 
@@ -240,9 +254,9 @@ async def test_logout(port, client_http, logout_method):
                               view='v_u1')
 
     def on_create_local_session(name, password):
-        session = hat.gui.server.user.UserSession(user=user,
-                                                  session_id=session_id,
-                                                  timestamp=12345)
+        session = UserSession(user=user,
+                              session_id=session_id,
+                              timestamp=12345)
         user_session_queue.put_nowait(session)
         return session
 
@@ -302,9 +316,9 @@ async def test_get_user(port, client_http):
                               view='v_u1')
 
     def on_create_local_session(name, password):
-        session = hat.gui.server.user.UserSession(user=user,
-                                                  session_id=session_id,
-                                                  timestamp=12345)
+        session = UserSession(user=user,
+                              session_id=session_id,
+                              timestamp=12345)
         return session
 
     user_manager = UserManager(create_local_session_cb=on_create_local_session)
@@ -355,9 +369,9 @@ async def test_get_ws(port, client_http, ws_addr):
                               view='v_u1')
 
     def on_create_local_session(name, password):
-        session = hat.gui.server.user.UserSession(user=user,
-                                                  session_id=session_id,
-                                                  timestamp=12345)
+        session = UserSession(user=user,
+                              session_id=session_id,
+                              timestamp=12345)
         return session
 
     user_manager = UserManager(create_local_session_cb=on_create_local_session)
@@ -424,9 +438,9 @@ async def test_get(port, client_http, tmp_path):
                               view=view_conf['name'])
 
     def on_create_local_session(name, password):
-        session = hat.gui.server.user.UserSession(user=user,
-                                                  session_id=session_id,
-                                                  timestamp=12345)
+        session = UserSession(user=user,
+                              session_id=session_id,
+                              timestamp=12345)
         return session
 
     user_manager = UserManager(create_local_session_cb=on_create_local_session)
@@ -496,9 +510,9 @@ async def test_initial_view(port, client_http, tmp_path):
                               view=view_conf['name'])
 
     def on_create_local_session(name, password):
-        session = hat.gui.server.user.UserSession(user=user,
-                                                  session_id=session_id,
-                                                  timestamp=12345)
+        session = UserSession(user=user,
+                              session_id=session_id,
+                              timestamp=12345)
         return session
 
     user_manager = UserManager(create_local_session_cb=on_create_local_session)

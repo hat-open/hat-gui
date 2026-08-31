@@ -291,7 +291,7 @@ async def test_get_oidc_url(tmp_path, port):
             ],
             'claims': {
                 'name': 'name',
-                'roles': ['administrator']},
+                'roles': 'groups'},
             'roles': {
                 'administrator': 'admin'}}]}
 
@@ -344,11 +344,12 @@ async def test_create_oidc_session(tmp_path, aiohttp_server_factory, port):
             ],
             'claims': {
                 'name': 'name',
-                'roles': ['administrator']},
+                'roles': 'groups'},
             'roles': {
                 'administrator': 'admin'}}]}
 
-    token = id_token(users_conf['oidc'][0]['claims'])
+    token = id_token({'name': 'name',
+                      'groups': ['administrator']})
 
     received = {}
 
@@ -420,7 +421,7 @@ async def test_create_oidc_session_token_error(
             ],
             'claims': {
                 'name': 'name',
-                'roles': ['administrator']},
+                'roles': 'groups'},
             'roles': {
                 'administrator': 'admin'}}]}
 
@@ -465,11 +466,12 @@ async def test_create_oidc_session_invalid_name(
             ],
             'claims': {
                 'name': 'name',
-                'roles': ['administrator']},
+                'roles': 'groups'},
             'roles': {
                 'administrator': 'admin'}}]}
 
-    token = id_token(users_conf['oidc'][0]['claims'])
+    token = id_token({'name': 'name',
+                      'groups': ['administrator']})
 
     received = {}
 
@@ -627,11 +629,12 @@ async def test_get_session_snapshot(tmp_path, aiohttp_server_factory, port):
             ],
             'claims': {
                 'name': 'name',
-                'roles': ['administrator']},
+                'roles': 'groups'},
             'roles': {
                 'administrator': 'admin'}}]}
 
-    token = id_token(users_conf['oidc'][0]['claims'])
+    token = id_token({'name': 'name',
+                      'groups': ['administrator']})
 
     received = {}
 
