@@ -1,7 +1,8 @@
 """View manager implementation"""
 
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from pathlib import Path
+import collections
 import contextlib
 import importlib.resources
 
@@ -27,16 +28,19 @@ class ViewManager(aio.Resource):
         for view_conf in view_confs:
             self._view_roles[view_conf['name']] = set(view_conf['roles'])
 
-            if 'view_path' in view_conf:
-                self._view_paths[view_conf['name']] = Path(
-                    view_conf['view_path']).resolve()
+            view_paths = collections.deque()
+            for path_conf in view_conf['paths']:
+                if 'path' in path_conf:
+                    view_paths.append(Path(path_conf['path']).resolve())
 
-            elif 'builtin' in view_conf:
-                self._view_paths[view_conf['name']] = (
-                    builtin_views_path / view_conf['builtin']).resolve()
+                elif 'builtin' in path_conf:
+                    view_paths.append((builtin_views_path /
+                                       path_conf['builtin']).resolve())
 
-            else:
-                raise ValueError('unsupported view conf')
+                else:
+                    raise ValueError('unsupported view conf')
+
+            self._view_paths[view_conf['name']] = view_paths
 
     @property
     def async_group(self) -> aio.Group:
@@ -48,5 +52,9 @@ class ViewManager(aio.Resource):
             if not view_roles.isdisjoint(roles):
                 return name
 
-    def get_view_path(self, name: str) -> Path | None:
-        return self._view_paths.get(name)
+    def get_view_paths(self, name: str) -> Collection[Path]:
+        try:
+            return self._view_paths[name]
+
+        except KeyError:
+            raise Exception('invalid view name')

@@ -75,7 +75,7 @@ class Client(aio.Resource):
                 await self._process_loop(sessions)
 
         except Exception as e:
-            mlog.debug("client loop error: %s", e, exc_info=e)
+            mlog.error("client loop error: %s", e, exc_info=e)
 
         finally:
             mlog.debug("stopping client loop")

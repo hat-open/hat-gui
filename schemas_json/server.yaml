@@ -179,31 +179,34 @@ $defs:
             module:
                 type: string
     view:
-        allOf:
-          - type: object
-            required:
-                - name
-                - roles
-            properties:
-                name:
+        type: object
+        required:
+            - name
+            - roles
+            - paths
+        properties:
+            name:
+                type: string
+            roles:
+                type: array
+                items:
                     type: string
-                roles:
-                    type: array
-                    items:
-                        type: string
-          - oneOf:
-              - type: object
-                required:
-                    - view_path
-                properties:
-                    view_path:
-                        type: string
-              - type: object
-                required:
-                    - builtin
-                properties:
-                    builtin:
-                        type: string
+            paths:
+                type: array
+                items:
+                    oneOf:
+                      - type: object
+                        required:
+                            - path
+                        properties:
+                            path:
+                                type: string
+                      - type: object
+                        required:
+                            - builtin
+                        properties:
+                            builtin:
+                                type: string
     local_user:
         type: object
         required:

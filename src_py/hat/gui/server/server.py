@@ -102,8 +102,11 @@ class Server(aio.Resource):
         return await client.process_request(name, data)
 
     async def _process_post_login_local(self, req):
+        mlog.debug("processing POST /login/local")
+
         session = self._get_user_session(req)
         if session:
+            mlog.debug("previous user session detected - closing session")
             session.close()
 
         try:
@@ -122,6 +125,8 @@ class Server(aio.Resource):
                 password=password)
 
         except Exception as e:
+            mlog.error("error processing POST /login/local: %s", e, exc_info=e)
+
             raise aiohttp.web.HTTPBadRequest(text=str(e))
 
         res = aiohttp.web.Response()
@@ -135,8 +140,11 @@ class Server(aio.Resource):
     async def _process_get_oidc(self, req):
         name = req.match_info['name']
 
+        mlog.debug("processing GET /oidc/%s", name)
+
         session = self._get_user_session(req)
         if session:
+            mlog.debug("previous user session detected - closing session")
             session.close()
 
         state = secrets.token_urlsafe(32)
@@ -146,6 +154,8 @@ class Server(aio.Resource):
                                                        state=state)
 
         except Exception as e:
+            mlog.error("error processing GET /oidc/%s", name, e, exc_info=e)
+
             raise aiohttp.web.HTTPBadRequest(text=str(e))
 
         res_exc = aiohttp.web.HTTPFound(oidc_url)
@@ -158,8 +168,11 @@ class Server(aio.Resource):
     async def _process_get_oidc_cb(self, req):
         name = req.match_info['name']
 
+        mlog.debug("processing GET /oidc/%s/cb", name)
+
         session = self._get_user_session(req)
         if session:
+            mlog.debug("previous user session detected - closing session")
             session.close()
 
         try:
@@ -180,6 +193,8 @@ class Server(aio.Resource):
                 code=code)
 
         except Exception as e:
+            mlog.error("error processing GET /oidc/%s", name, e, exc_info=e)
+
             raise aiohttp.web.HTTPBadRequest(text=str(e))
 
         res_exc = aiohttp.web.HTTPFound('/index.html')
@@ -191,23 +206,51 @@ class Server(aio.Resource):
         raise res_exc
 
     async def _process_post_logout(self, req):
-        session = self._get_user_session(req)
-        if session:
-            session.close()
+        mlog.debug("processing POST /logout")
+
+        try:
+            session = self._get_user_session(req)
+            if not session:
+                raise Exception("user session not found")
+
+        except Exception as e:
+            mlog.error("error processing POST /logout: %s", e, exc_info=e)
+
+            aiohttp.web.HTTPBadRequest(text=str(e))
+
+        session.close()
 
         return aiohttp.web.Response()
 
     async def _process_get_logout(self, req):
-        session = self._get_user_session(req)
-        if session:
-            session.close()
+        mlog.debug("processing GET /logout")
+
+        try:
+            session = self._get_user_session(req)
+            if not session:
+                raise Exception("user session not found")
+
+        except Exception as e:
+            mlog.error("error processing GET /logout: %s", e, exc_info=e)
+
+            aiohttp.web.HTTPBadRequest(text=str(e))
+
+        session.close()
 
         raise aiohttp.web.HTTPFound('/index.html')
 
     async def _process_get_user(self, req):
-        session = self._get_user_session(req)
-        if not session:
-            raise aiohttp.web.HTTPBadRequest(text='invalid user session')
+        mlog.debug("processing GET /user")
+
+        try:
+            session = self._get_user_session(req)
+            if not session:
+                raise Exception("user session not found")
+
+        except Exception as e:
+            mlog.error("error processing GET /user: %s", e, exc_info=e)
+
+            aiohttp.web.HTTPBadRequest(text=str(e))
 
         return aiohttp.web.Response(
             content_type='application/json',
@@ -215,72 +258,92 @@ class Server(aio.Resource):
                               'roles': list(session.user.roles)}))
 
     async def _process_get_ws(self, req):
-        session = self._get_user_session(req)
-        if not session:
-            raise aiohttp.web.HTTPBadRequest(text='invalid user session')
-
-        conn = await self._srv.create_connection(req)
+        mlog.debug("processing GET /ws")
 
         try:
-            session.acquire()
-
-            client = hat.gui.server.client.Client(
-                conn=conn,
-                user=session.user,
-                adapter_manager=self._adapter_manager)
-
-            client.async_group.spawn(
-                aio.call_on_done, session.wait_closing(), client.close)
-
-            self._clients[conn] = client
-
-            try:
-                await self._register_clients_event()
-
-                await client.wait_closing()
-
-            finally:
-                self._clients.pop(conn, None)
-                await aio.uncancellable(self._register_clients_event())
+            session = self._get_user_session(req)
+            if not session:
+                raise Exception("user session not found")
 
         except Exception as e:
-            raise aiohttp.web.HTTPInternalServerError(text=str(e))
+            mlog.error("error processing GET /ws: %s", e, exc_info=e)
 
-        finally:
-            session.release()
-            await aio.uncancellable(conn.async_close())
+            aiohttp.web.HTTPBadRequest(text=str(e))
+
+        try:
+            mlog.debug("creating juggler connection")
+            conn = await self._srv.create_connection(req)
+
+            try:
+                mlog.debug("acquiring session")
+                session.acquire()
+
+                try:
+                    mlog.debug("creating client")
+                    client = hat.gui.server.client.Client(
+                        conn=conn,
+                        user=session.user,
+                        adapter_manager=self._adapter_manager)
+
+                    client.async_group.spawn(
+                        aio.call_on_done, session.wait_closing(), client.close)
+
+                    self._clients[conn] = client
+
+                    try:
+                        await self._register_clients_event()
+
+                        await client.wait_closing()
+
+                    finally:
+                        self._clients.pop(conn, None)
+                        await aio.uncancellable(self._register_clients_event())
+
+                finally:
+                    mlog.debug("releasing session")
+                    session.release()
+
+            finally:
+                await aio.uncancellable(conn.async_close())
+
+        except Exception as e:
+            mlog.error("error creating client: %s", e, exc_info=e)
+
+            raise aiohttp.web.HTTPInternalServerError(text=str(e))
 
         return conn.ws
 
     async def _process_get(self, req):
+        path = req.match_info['path']
+
+        mlog.debug("processing GET %s", path)
+
         session = self._get_user_session(req)
         if session:
+            mlog.debug("user session found")
             view = session.user.view
 
         else:
+            mlog.debug("user session not found")
             view = self._initial_view
 
         try:
             if not view:
                 raise Exception('view not available')
 
-            view_path = self._view_manager.get_view_path(view)
-            if not view_path:
-                raise Exception('view not available')
+            for view_path in self._view_manager.get_view_paths(view):
+                file_path = (view_path / path).resolve()
+
+                if file_path.is_relative_to(view_path) and file_path.exists():
+                    mlog.debug("returning file %s", file_path)
+                    return aiohttp.web.FileResponse(path=file_path)
 
         except Exception as e:
+            mlog.error("error processing GET %s: %s", path, e, exc_info=e)
+
             raise aiohttp.web.HTTPInternalServerError(text=str(e))
 
-        try:
-            path = (view_path / req.match_info['path']).resolve()
-
-            if not path.is_relative_to(view_path):
-                raise Exception('invalid path')
-
-        except Exception as e:
-            raise aiohttp.web.HTTPBadRequest(text=str(e))
-
-        return aiohttp.web.FileResponse(path=path)
+        raise aiohttp.web.HTTPNotFound()
 
     def _get_user_session(self, req):
         session_id = req.cookies.get(_session_id_cookie_name)
@@ -289,6 +352,7 @@ class Server(aio.Resource):
 
         session = self._user_manager.get_session(session_id)
         if session:
+            mlog.debug("refreshing session")
             session.refresh()
 
         return session

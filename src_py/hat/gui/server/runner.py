@@ -54,10 +54,12 @@ class MainRunner(aio.Resource):
             await aio.uncancellable(self._stop())
 
     async def _start(self):
+        mlog.debug("creating view manager")
         self._view_manager = hat.gui.server.view.ViewManager(
             view_confs=self._conf['views'])
         _bind_resource(self.async_group, self._view_manager)
 
+        mlog.debug("creating user manager")
         self._user_manager = await hat.gui.server.user.create_manager(
             users_conf=self._conf['users'],
             view_manager=self._view_manager)
