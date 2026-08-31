@@ -685,7 +685,7 @@ async def test_get(port, client_http, tmp_path):
     file_path.write_bytes(file_content)
     view_conf = {'name': 'v1',
                  'roles': ['r1', 'r2'],
-                 'view_path': str(view_path)}
+                 'paths': [{'path': str(view_path)}]}
     view_manager = ViewManager([view_conf])
 
     username = 'u1'
@@ -758,7 +758,7 @@ async def test_initial_view(port, client_http, tmp_path):
     (view_path / 'index.html').write_bytes(view_file_content)
     view_conf = {'name': 'v1',
                  'roles': ['r1', 'r2'],
-                 'view_path': str(view_path)}
+                 'paths': [{'path': str(view_path)}]}
 
     init_view_path = tmp_path / 'v_init'
     init_view_path.mkdir()
@@ -767,7 +767,7 @@ async def test_initial_view(port, client_http, tmp_path):
         init_view_file_content)
     init_view_conf = {'name': 'v_init',
                       'roles': [],
-                      'view_path': str(init_view_path)}
+                      'paths': [{'path': str(init_view_path)}]}
     view_manager = ViewManager([view_conf, init_view_conf])
 
     username = 'u1'

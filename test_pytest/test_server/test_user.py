@@ -35,7 +35,7 @@ class ViewManager(aio.Resource):
             if not view_roles.isdisjoint(roles):
                 return name
 
-    def get_view_path(self, name: str) -> Path | None:
+    def get_view_paths(self, name: str) -> Path:
         raise NotImplementedError()
 
 
