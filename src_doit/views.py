@@ -46,14 +46,15 @@ def task_views_login_ts():
 
 def task_views_login_static():
     """Copy login view static files"""
+    view_dir = views_dir / 'login'
     return common.get_task_copy([(src_static_dir / 'login',
-                                  views_dir),
+                                  view_dir),
                                  (node_modules_dir / '@hat-open/juggler',
-                                  views_dir / 'script/@hat-open/juggler'),
+                                  view_dir / 'script/@hat-open/juggler'),
                                  (node_modules_dir / '@hat-open/renderer',
-                                  views_dir / 'script/@hat-open/renderer'),
+                                  view_dir / 'script/@hat-open/renderer'),
                                  (node_modules_dir / '@hat-open/util',
-                                  views_dir / 'script/@hat-open/util'),
+                                  view_dir / 'script/@hat-open/util'),
                                  (node_modules_dir / 'snabbdom/build',
-                                  views_dir / 'script/snabbdom')],
+                                  view_dir / 'script/snabbdom')],
                                 task_dep=['node_modules'])
