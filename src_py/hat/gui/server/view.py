@@ -47,10 +47,10 @@ class ViewManager(aio.Resource):
         """Async group"""
         return self._async_group
 
-    def get_view(self, roles: set[str]) -> str | None:
-        for name, view_roles in self._view_roles.items():
-            if not view_roles.isdisjoint(roles):
-                return name
+    def get_views(self, roles: set[str]) -> set[str]:
+        return {name
+                for name, view_roles in self._view_roles.items()
+                if not view_roles.isdisjoint(roles)}
 
     def get_view_paths(self, name: str) -> Collection[Path]:
         try:

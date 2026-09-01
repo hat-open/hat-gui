@@ -47,6 +47,12 @@ async def create_server(host: str,
     server._clients = {}
 
     additional_routes = [
+        aiohttp.web.get(
+            '/',
+            server._process_get_root),
+        aiohttp.web.get(
+            '/index',
+            server._process_get_index),
         aiohttp.web.post(
             '/login/local',
             server._process_post_login_local),
@@ -69,13 +75,14 @@ async def create_server(host: str,
             '/ws',
             server._process_get_ws),
         aiohttp.web.get(
-            '/{path:.*}',
-            server._process_get)]
+            '/view/{name}/{path:.*}',
+            server._process_get_view)]
 
     server._srv = await juggler.listen(host=host,
                                        port=port,
                                        request_cb=server._on_request,
                                        ws_path=None,
+                                       index_path=None,
                                        autoflush_delay=autoflush_delay,
                                        parallel_requests=True,
                                        additional_routes=additional_routes)
@@ -100,6 +107,42 @@ class Server(aio.Resource):
             raise Exception('invalid connection')
 
         return await client.process_request(name, data)
+
+    async def _process_get_root(self, req):
+        mlog.debug("processing GET /")
+
+        session = self._get_user_session(req)
+        redirect_url = self._get_redirect_url(session)
+
+        raise aiohttp.web.HTTPFound(redirect_url)
+
+    async def _process_get_index(self, req):
+        mlog.debug("processing GET /index")
+
+        session = self._get_user_session(req)
+
+        views = set()
+
+        if self._initial_view:
+            views.add(self._initial_view)
+
+        if session:
+            views.update(session.user.views)
+
+        body = '\n'.join([
+            "<!DOCTYPE html>",
+            "<html>",
+            "<body>",
+            "<ul>",
+            *(f'<li><a href="/view/{view}/index.html">{view}</a></li>'
+              for view in views),
+            "</ul>",
+            "</body>",
+            "</html>"])
+
+        return aiohttp.web.Response(
+            content_type='text/html',
+            text=body)
 
     async def _process_post_login_local(self, req):
         mlog.debug("processing POST /login/local")
@@ -197,7 +240,9 @@ class Server(aio.Resource):
 
             raise aiohttp.web.HTTPBadRequest(text=str(e))
 
-        res_exc = aiohttp.web.HTTPFound('/index.html')
+        redirect_url = self._get_redirect_url(session)
+
+        res_exc = aiohttp.web.HTTPFound(redirect_url)
         res_exc.set_cookie(_session_id_cookie_name,
                            session.session_id,
                            max_age=_session_id_cookie_max_age,
@@ -237,7 +282,9 @@ class Server(aio.Resource):
 
         session.close()
 
-        raise aiohttp.web.HTTPFound('/index.html')
+        redirect_url = self._get_redirect_url(None)
+
+        raise aiohttp.web.HTTPFound(redirect_url)
 
     async def _process_get_user(self, req):
         mlog.debug("processing GET /user")
@@ -313,25 +360,26 @@ class Server(aio.Resource):
 
         return conn.ws
 
-    async def _process_get(self, req):
+    async def _process_get_view(self, req):
+        name = req.match_info['view']
         path = req.match_info['path']
 
-        mlog.debug("processing GET %s", path)
+        mlog.debug("processing GET /view/%s/%s", name, path)
 
         session = self._get_user_session(req)
-        if session:
-            mlog.debug("user session found")
-            view = session.user.view
+
+        if name and name == self._initial_view:
+            pass
+
+        elif session and name in session.user.views:
+            pass
 
         else:
-            mlog.debug("user session not found")
-            view = self._initial_view
+            mlog.error("not authorized to access %s view", name)
+            raise aiohttp.web.HTTPUnauthorized()
 
         try:
-            if not view:
-                raise Exception('view not available')
-
-            for view_path in self._view_manager.get_view_paths(view):
+            for view_path in self._view_manager.get_view_paths(name):
                 file_path = (view_path / path).resolve()
 
                 if file_path.is_relative_to(view_path) and file_path.exists():
@@ -339,7 +387,8 @@ class Server(aio.Resource):
                     return aiohttp.web.FileResponse(path=file_path)
 
         except Exception as e:
-            mlog.error("error processing GET %s: %s", path, e, exc_info=e)
+            mlog.error("error processing GET /view/%s/%s: %s",
+                       name, path, e, exc_info=e)
 
             raise aiohttp.web.HTTPInternalServerError(text=str(e))
 
@@ -356,6 +405,18 @@ class Server(aio.Resource):
             session.refresh()
 
         return session
+
+    def _get_redirect_url(self, session):
+        if session and session.is_open:
+            view = next(iter(session.user.views), None)
+
+        else:
+            view = self._initial_view
+
+        if not view:
+            return '/index'
+
+        return f'/view/{view}/index.html'
 
     async def _register_clients_event(self):
         event = hat.event.common.RegisterEvent(

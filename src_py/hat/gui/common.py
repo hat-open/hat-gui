@@ -33,7 +33,7 @@ class User(typing.NamedTuple):
     """User"""
     name: str
     roles: set[str]
-    view: str | None
+    views: set[str]
 
 
 class AdapterSession(aio.Resource):

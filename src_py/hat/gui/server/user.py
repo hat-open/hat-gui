@@ -155,11 +155,11 @@ class UserManager(aio.Resource):
             raise Exception("invalid password")
 
         roles = set(user_conf['roles'])
-        view = self._view_manager.get_view(roles)
+        views = self._view_manager.get_views(roles)
 
         user = common.User(name=name,
                            roles=roles,
-                           view=view)
+                           views=views)
 
         session = _LocalUserSession(user=user,
                                     session_id=self._generate_session_id(),
@@ -210,11 +210,11 @@ class UserManager(aio.Resource):
             if role:
                 roles.add(role)
 
-        view = self._view_manager.get_view(roles)
+        views = self._view_manager.get_views(roles)
 
         user = common.User(name=name,
                            roles=roles,
-                           view=view)
+                           views=views)
 
         session = _OidcUserSession(user=user,
                                    session_id=self._generate_session_id(),
@@ -418,11 +418,11 @@ def _decode_local_session(local_user_confs: dict[str, json.Data],
         raise Exception('user not available')
 
     roles = set(local_user_conf['roles'])
-    view = view_manager.get_view(roles)
+    views = view_manager.get_views(roles)
 
     user = common.User(name=name,
                        roles=roles,
-                       view=view)
+                       views=views)
 
     return _LocalUserSession(user=user,
                              session_id=data['session_id'],
@@ -442,11 +442,11 @@ def _decode_oidc_session(oidc_confs: dict[str, json.Data],
                          ) -> _OidcUserSession:
     name = data['user']['name']
     roles = set(data['user']['roles'])
-    view = view_manager.get_view(roles)
+    views = view_manager.get_views(roles)
 
     user = common.User(name=name,
                        roles=roles,
-                       view=view)
+                       views=views)
 
     return _OidcUserSession(user=user,
                             session_id=data['session_id'],
