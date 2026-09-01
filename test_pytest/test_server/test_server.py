@@ -252,6 +252,62 @@ async def test_login_local(port, client_http, success):
     await eventer_client.async_close()
 
 
+async def test_login_local_previous_session(port, client_http):
+    user_session_queue = aio.Queue()
+    username = 'u1'
+    session_ids = {'abcxyz1', 'abcxyz2'}
+
+    def on_create_local_session(name, password):
+        session = UserSession(user=common.User(name=username,
+                                               roles=['r1', 'r2'],
+                                               view='v_u1'),
+                              session_id=session_ids.pop(),
+                              timestamp=12345)
+        user_session_queue.put_nowait(session)
+        return session
+
+    user_manager = UserManager(create_local_session_cb=on_create_local_session)
+    view_manager = ViewManager([])
+    adapter_manager = AdapterManager()
+    eventer_client = EventerClient()
+
+    server = await hat.gui.server.server.create_server(
+        host='127.0.0.1',
+        port=port,
+        name='name',
+        initial_view=None,
+        view_manager=view_manager,
+        user_manager=user_manager,
+        adapter_manager=adapter_manager,
+        eventer_client=eventer_client,
+        autoflush_delay=0)
+
+    user_login = {'name': username,
+                  'password': 'abcxyz'}
+    async with client_http.post('/login/local',
+                                data=json.encode(user_login)) as resp:
+        assert resp.status == 200
+
+    user_session = await user_session_queue.get()
+    assert user_session.is_open
+
+    async with client_http.post(
+            '/login/local',
+            data=json.encode(user_login),
+            cookies={'SESSION_ID': user_session.session_id}) as resp:
+        assert resp.status == 200
+
+    await user_session.wait_closed()
+
+    new_user_session = await user_session_queue.get()
+    new_user_session.session_id == user_session.session_id
+    assert new_user_session.session_id == resp.cookies.get('SESSION_ID').value
+    assert new_user_session.is_open
+
+    await server.async_close()
+    await eventer_client.async_close()
+
+
 @pytest.mark.parametrize('logout_method', ['get', 'post'])
 async def test_logout(port, client_http, logout_method):
     user_session_queue = aio.Queue()
@@ -361,6 +417,80 @@ async def test_get_user(port, client_http):
         data = await resp.json()
         assert data == {'name': username,
                         'roles': roles}
+
+    await server.async_close()
+    await eventer_client.async_close()
+
+
+async def test_multiple_users(port, client_http):
+    user_session_queue = aio.Queue()
+
+    def on_create_local_session(name, password):
+        session = UserSession(user=common.User(name=name,
+                                               roles=[],
+                                               view=f'v_{name}'),
+                              session_id=f"session_{name}",
+                              timestamp=54321)
+        user_session_queue.put_nowait(session)
+        return session
+
+    user_manager = UserManager(create_local_session_cb=on_create_local_session)
+    view_manager = ViewManager([])
+    adapter_manager = AdapterManager()
+    eventer_client = EventerClient()
+
+    server = await hat.gui.server.server.create_server(
+        host='127.0.0.1',
+        port=port,
+        name='name',
+        initial_view=None,
+        view_manager=view_manager,
+        user_manager=user_manager,
+        adapter_manager=adapter_manager,
+        eventer_client=eventer_client,
+        autoflush_delay=0)
+
+    usernames = []
+    user_sessions = []
+    for i in range(10):
+        username = f"u_{i}"
+        usernames.append(username)
+        user_login = {'name': username,
+                      'password': "xyzabc"}
+        async with client_http.post('/login/local',
+                                    data=json.encode(user_login)) as resp:
+            assert resp.status == 200
+
+        user_session = await user_session_queue.get()
+        user_sessions.append(user_session)
+
+    for username, user_session in zip(usernames, user_sessions):
+        assert username == user_session.user.name
+        assert user_session.is_open
+
+    # logout first session
+    first_session = user_sessions[0]
+    async with client_http.post(
+            '/logout',
+            cookies={'SESSION_ID': first_session.session_id}) as resp:
+        assert resp.status == 200
+
+    assert first_session.is_closing
+    await first_session.wait_closed()
+
+    # all other sessions are still open
+    for user_session in user_sessions[1:]:
+        assert user_session.is_open
+
+    # get last user
+    last_session = user_sessions[-1]
+    async with client_http.get(
+            '/user',
+            cookies={'SESSION_ID': last_session.session_id}) as resp:
+        assert resp.status == 200
+        data = await resp.json()
+        assert data == {'name': last_session.user.name,
+                        'roles': last_session.user.roles}
 
     await server.async_close()
     await eventer_client.async_close()
@@ -596,11 +726,13 @@ async def test_juggler_state(port, client_http, ws_addr):
     client_juggler = await hat.juggler.connect(
         ws_addr,
         cookies={'SESSION_ID': session_id})
+    state_queue = aio.Queue()
+    client_juggler.state.register_change_cb(state_queue.put_nowait)
 
     adapter_session = await adapter_session_queue.get()
 
-    state_queue = aio.Queue()
-    client_juggler.state.register_change_cb(state_queue.put_nowait)
+    state_data = await state_queue.get()
+    assert state_data == {'a1': None}
 
     adapter_session.state.set([], {'abc': 123})
 
