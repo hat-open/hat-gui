@@ -67,6 +67,7 @@ class Client(aio.Resource):
 
             with contextlib.ExitStack() as exit_stack:
                 for name, session in sessions.items():
+                    self._conn.state.set(name, session.state.data)
                     exit_stack.enter_context(
                         session.state.register_change_cb(
                             functools.partial(self._conn.state.set,
