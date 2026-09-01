@@ -30,10 +30,10 @@ class ViewManager(aio.Resource):
     def async_group(self) -> aio.Group:
         return self._async_group
 
-    def get_view(self, roles: set[str]) -> str | None:
-        for name, view_roles in self._view_roles.items():
-            if not view_roles.isdisjoint(roles):
-                return name
+    def get_views(self, roles: set[str]) -> set[str]:
+        return {name
+                for name, view_roles in self._view_roles.items()
+                if not view_roles.isdisjoint(roles)}
 
     def get_view_paths(self, name: str) -> Path:
         raise NotImplementedError()
@@ -77,7 +77,7 @@ async def aiohttp_server_factory():
         await site.start()
 
         try:
-            yield f'http://localhost:{port}'
+            yield
 
         finally:
             await site.stop()
@@ -138,7 +138,7 @@ async def test_create_local_session(tmp_path):
     assert user
     assert user.name == name
     assert user.roles == {'admin'}
-    assert user.view == 'view'
+    assert user.views == {'view'}
 
     await user_manager.async_close()
     await view_manager.async_close()
@@ -173,7 +173,7 @@ async def test_create_local_session_no_view(tmp_path):
     assert user
     assert user.name == name
     assert user.roles == {'admin'}
-    assert user.view is None
+    assert user.views == set()
 
     await user_manager.async_close()
     await view_manager.async_close()
@@ -282,9 +282,7 @@ async def test_get_oidc_url(tmp_path, port):
             'authorize_url': 'https://oidc.example/authorize',
             'token_url': 'https://oidc.example/token',
             'client_id': 'hat-gui',
-            'auth': {
-                'login': 'hat-gui',
-                'password': 'secret'},
+            'client_secret': 'secret',
             'scope': [
                 'profile',
                 'email'
@@ -320,6 +318,44 @@ async def test_get_oidc_url(tmp_path, port):
     await view_manager.async_close()
 
 
+async def test_get_oidc_url_invalid_name(tmp_path, port):
+    view_confs = [{'name': 'view',
+                   'roles': ['operator', 'admin']}]
+    view_manager = ViewManager(view_confs)
+
+    users_conf = {
+        'max_sessions': 10,
+        'snapshot_path': str(tmp_path / 'snapshot.json'),
+        'snapshot_delay': 10,
+        'oidc': [{
+            'name': 'test',
+            'local_url': f'http://localhost:{port}',
+            'authorize_url': 'https://oidc.example/authorize',
+            'token_url': 'https://oidc.example/token',
+            'client_id': 'hat-gui',
+            'client_secret': 'secret',
+            'scope': [
+                'profile',
+                'email'
+            ],
+            'claims': {
+                'name': 'name',
+                'roles': 'groups'},
+            'roles': {
+                'administrator': 'admin'}}]}
+
+    user_manager = await hat.gui.server.user.create_manager(
+        users_conf=users_conf,
+        view_manager=view_manager)
+
+    with pytest.raises(Exception):
+        user_manager.get_oidc_url(name='nonexistent',
+                                  state='test-state')
+
+    await user_manager.async_close()
+    await view_manager.async_close()
+
+
 async def test_create_oidc_session(tmp_path, aiohttp_server_factory, port):
     view_confs = [{'name': 'view',
                    'roles': ['operator', 'admin']}]
@@ -335,9 +371,7 @@ async def test_create_oidc_session(tmp_path, aiohttp_server_factory, port):
             'authorize_url': 'https://oidc.example/authorize',
             'token_url': f'http://localhost:{port}/token',
             'client_id': 'hat-gui',
-            'auth': {
-                'login': 'hat-gui',
-                'password': 'secret'},
+            'client_secret': 'secret',
             'scope': [
                 'profile',
                 'email'
@@ -383,7 +417,7 @@ async def test_create_oidc_session(tmp_path, aiohttp_server_factory, port):
         assert received['content_type'] == 'application/x-www-form-urlencoded'
 
         assert received['authorization'] == (
-            'Basic ' + base64.b64encode(b'hat-gui:secret').decode('ascii'))
+            'Basic ' + base64.b64encode(b'hat-gui:secret').decode('utf-8'))
 
         data = urllib.parse.parse_qs(received['data'])
 
@@ -412,9 +446,7 @@ async def test_create_oidc_session_token_error(
             'authorize_url': 'https://oidc.example/authorize',
             'token_url': f'http://localhost:{port}/token',
             'client_id': 'hat-gui',
-            'auth': {
-                'login': 'hat-gui',
-                'password': 'secret'},
+            'client_secret': 'secret',
             'scope': [
                 'profile',
                 'email'
@@ -457,9 +489,7 @@ async def test_create_oidc_session_invalid_name(
             'authorize_url': 'https://oidc.example/authorize',
             'token_url': f'http://localhost:{port}/token',
             'client_id': 'hat-gui',
-            'auth': {
-                'login': 'hat-gui',
-                'password': 'secret'},
+            'client_secret': 'secret',
             'scope': [
                 'profile',
                 'email'
@@ -499,6 +529,54 @@ async def test_create_oidc_session_invalid_name(
         await view_manager.async_close()
 
 
+async def test_create_oidc_session_invalid_claims_name(
+        tmp_path, aiohttp_server_factory, port):
+    view_confs = [{'name': 'view',
+                   'roles': ['operator', 'admin']}]
+    view_manager = ViewManager(view_confs)
+
+    users_conf = {
+        'max_sessions': 10,
+        'snapshot_path': str(tmp_path / 'snapshot.json'),
+        'snapshot_delay': 10,
+        'oidc': [{
+            'name': 'test',
+            'local_url': f'http://localhost:{port}',
+            'authorize_url': 'https://oidc.example/authorize',
+            'token_url': f'http://localhost:{port}/token',
+            'client_id': 'hat-gui',
+            'client_secret': 'secret',
+            'scope': [
+                'profile',
+                'email'
+            ],
+            'claims': {
+                'name': 'name',
+                'roles': 'groups'},
+            'roles': {
+                'administrator': 'admin'}}]}
+
+    token = id_token({'name': 1234,
+                      'groups': ['administrator']})
+
+    async def token_handler(request):
+        return aiohttp.web.json_response({
+            'access_token': 'test-access-token',
+            'id_token': token})
+
+    async with aiohttp_server_factory(port=port, handler=token_handler):
+
+        user_manager = await hat.gui.server.user.create_manager(
+            users_conf=users_conf, view_manager=view_manager)
+
+        with pytest.raises(Exception):
+            await user_manager.create_oidc_session(
+                name='test', code='authorization-code')
+
+        await user_manager.async_close()
+        await view_manager.async_close()
+
+
 async def test_create_snapshot(tmp_path):
     view_confs = [{'name': 'view',
                    'roles': ['operator', 'admin']}]
@@ -523,6 +601,37 @@ async def test_create_snapshot(tmp_path):
     await asyncio.sleep(0.2)
 
     assert snapshot_path.exists()
+
+    await user_manager.async_close()
+    await view_manager.async_close()
+
+
+async def test_create_snapshot_failure(tmp_path):
+    view_confs = [{'name': 'view',
+                   'roles': ['operator', 'admin']}]
+    view_manager = ViewManager(view_confs)
+
+    snapshot_path = tmp_path / 'snapshot.xyz'
+    name = 'name'
+    password = 'pass'
+    users_conf = {
+        'max_sessions': 10,
+        'snapshot_path': str(snapshot_path),
+        'snapshot_delay': 0.1,
+        'local': {
+            'users': [{'name': name,
+                       'password': password_hashed(password),
+                       'roles': ['admin']}]}}
+
+    user_manager = await hat.gui.server.user.create_manager(
+        users_conf=users_conf,
+        view_manager=view_manager)
+
+    await asyncio.sleep(0.2)
+
+    assert not snapshot_path.exists()
+
+    assert user_manager.is_open
 
     await user_manager.async_close()
     await view_manager.async_close()
@@ -561,6 +670,69 @@ async def test_get_session(tmp_path):
     await view_manager.async_close()
 
 
+async def test_get_session_invalid(tmp_path):
+    view_confs = [{'name': 'view',
+                   'roles': ['operator', 'admin']}]
+    view_manager = ViewManager(view_confs)
+
+    snapshot_path = tmp_path / 'snapshot.json'
+    name = 'name'
+    password = 'pass'
+    users_conf = {
+        'max_sessions': 10,
+        'snapshot_path': str(snapshot_path),
+        'snapshot_delay': 0.1,
+        'local': {
+            'users': [{'name': name,
+                       'password': password_hashed(password),
+                       'roles': ['admin']}]}}
+
+    user_manager = await hat.gui.server.user.create_manager(
+        users_conf=users_conf,
+        view_manager=view_manager)
+
+    retrieved_session = user_manager.get_session('nonexistent')
+
+    assert not retrieved_session
+
+    await user_manager.async_close()
+    await view_manager.async_close()
+
+
+async def test_get_session_closed(tmp_path):
+    view_confs = [{'name': 'view',
+                   'roles': ['operator', 'admin']}]
+    view_manager = ViewManager(view_confs)
+
+    snapshot_path = tmp_path / 'snapshot.json'
+    name = 'name'
+    password = 'pass'
+    users_conf = {
+        'max_sessions': 10,
+        'snapshot_path': str(snapshot_path),
+        'snapshot_delay': 0.1,
+        'local': {
+            'users': [{'name': name,
+                       'password': password_hashed(password),
+                       'roles': ['admin']}]}}
+
+    user_manager = await hat.gui.server.user.create_manager(
+        users_conf=users_conf,
+        view_manager=view_manager)
+
+    session = await user_manager.create_local_session(name=name,
+                                                      password=password)
+    assert session is not None
+    await session.async_close()
+
+    retrieved_session = user_manager.get_session(session.session_id)
+
+    assert not retrieved_session
+
+    await user_manager.async_close()
+    await view_manager.async_close()
+
+
 async def test_max_sessions(tmp_path):
     view_confs = [{'name': 'view',
                    'roles': ['operator', 'admin']}]
@@ -591,8 +763,91 @@ async def test_max_sessions(tmp_path):
     for i in session_ids[1:]:
         assert user_manager.get_session(i)
 
-    # first one dropped
+    # oldest one dropped
     assert user_manager.get_session(session_ids[0]) is None
+
+    await user_manager.async_close()
+    await view_manager.async_close()
+
+
+async def test_max_sessions_closed(tmp_path):
+    view_confs = [{'name': 'view',
+                   'roles': ['operator', 'admin']}]
+    view_manager = ViewManager(view_confs)
+
+    max_sessions = 2
+    name = 'name'
+    password = 'pass'
+    users_conf = {
+        'max_sessions': max_sessions,
+        'snapshot_path': str(tmp_path / 'snapshot.json'),
+        'snapshot_delay': 10,
+        'local': {
+            'users': [{'name': name,
+                       'password': password_hashed(password),
+                       'roles': ['admin']}]}}
+
+    user_manager = await hat.gui.server.user.create_manager(
+        users_conf=users_conf,
+        view_manager=view_manager)
+
+    session = await user_manager.create_local_session(name=name,
+                                                      password=password)
+    session_id_open = session.session_id
+
+    session = await user_manager.create_local_session(name=name,
+                                                      password=password)
+    session_id_closed = session.session_id
+
+    await session.async_close()
+
+    session = await user_manager.create_local_session(name=name,
+                                                      password=password)
+    session_id_new = session.session_id
+
+    # closed one dropped
+    assert user_manager.get_session(session_id_open)
+    assert not user_manager.get_session(session_id_closed)
+    assert user_manager.get_session(session_id_new)
+
+    await user_manager.async_close()
+    await view_manager.async_close()
+
+
+async def test_max_sessions_active(tmp_path):
+    view_confs = [{'name': 'view',
+                   'roles': ['operator', 'admin']}]
+    view_manager = ViewManager(view_confs)
+
+    max_sessions = 5
+    name = 'name'
+    password = 'pass'
+    users_conf = {
+        'max_sessions': max_sessions,
+        'snapshot_path': str(tmp_path / 'snapshot.json'),
+        'snapshot_delay': 10,
+        'local': {
+            'users': [{'name': name,
+                       'password': password_hashed(password),
+                       'roles': ['admin']}]}}
+
+    user_manager = await hat.gui.server.user.create_manager(
+        users_conf=users_conf,
+        view_manager=view_manager)
+
+    session_ids = []
+    for i in range(max_sessions):
+        session = await user_manager.create_local_session(name=name,
+                                                          password=password)
+        session_ids.append(session.session_id)
+        session.acquire()
+
+    with pytest.raises(Exception):
+        await user_manager.create_local_session(name=name,
+                                                password=password)
+
+    for i in session_ids:
+        assert user_manager.get_session(i)
 
     await user_manager.async_close()
     await view_manager.async_close()
@@ -620,9 +875,7 @@ async def test_get_session_snapshot(tmp_path, aiohttp_server_factory, port):
             'authorize_url': 'https://oidc.example/authorize',
             'token_url': f'http://localhost:{port}/token',
             'client_id': 'hat-gui',
-            'auth': {
-                'login': 'hat-gui',
-                'password': 'secret'},
+            'client_secret': 'secret',
             'scope': [
                 'profile',
                 'email'
@@ -675,7 +928,7 @@ async def test_get_session_snapshot(tmp_path, aiohttp_server_factory, port):
     assert retrieved_session.user
     assert retrieved_session.user.name == session_local.user.name
     assert retrieved_session.user.roles == session_local.user.roles
-    assert retrieved_session.user.view == session_local.user.view
+    assert retrieved_session.user.views == session_local.user.views
 
     retrieved_session = user_manager.get_session(session_oidc.session_id)
     assert retrieved_session is not None
@@ -686,7 +939,7 @@ async def test_get_session_snapshot(tmp_path, aiohttp_server_factory, port):
     assert retrieved_session.user
     assert retrieved_session.user.name == session_oidc.user.name
     assert retrieved_session.user.roles == session_oidc.user.roles
-    assert retrieved_session.user.view == session_oidc.user.view
+    assert retrieved_session.user.views == session_oidc.user.views
 
     await user_manager.async_close()
     await view_manager.async_close()
