@@ -361,7 +361,7 @@ class Server(aio.Resource):
         return conn.ws
 
     async def _process_get_view(self, req):
-        name = req.match_info['view']
+        name = req.match_info['name']
         path = req.match_info['path']
 
         mlog.debug("processing GET /view/%s/%s", name, path)
