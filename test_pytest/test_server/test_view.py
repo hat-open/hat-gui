@@ -8,8 +8,8 @@ async def test_empty_view_manager():
 
     assert manager.is_open
 
-    view_name = manager.get_view({'nonexistent'})
-    assert view_name is None
+    view_names = manager.get_views({'nonexistent'})
+    assert view_names == set()
 
     with pytest.raises(Exception):
         manager.get_view_paths('nonexistent')
@@ -19,33 +19,33 @@ async def test_empty_view_manager():
     assert manager.is_closed
 
 
-async def test_get_view(tmp_path):
+async def test_get_views(tmp_path):
     view_confs = [{'name': 'abc',
                    'roles': ['operator'],
-                   'paths': [{'path': str(tmp_path / 'abc.js')}]},
+                   'paths': [{'path': str(tmp_path / 'abc')}]},
                   {'name': 'def',
                    'roles': ['operator', 'admin'],
-                   'paths': [{'path': str(tmp_path / 'def.js')}]},
+                   'paths': [{'path': str(tmp_path / 'def')}]},
                   {'name': 'ghi',
                    'roles': ['guest'],
                    'paths': [{'builtin': 'login'}]}]
 
     manager = hat.gui.server.view.ViewManager(view_confs)
 
-    view_name = manager.get_view({'admin'})
-    assert view_name == 'def'
+    view_names = manager.get_views({'admin'})
+    assert view_names == {'def'}
 
-    view_name = manager.get_view({'operator'})
-    assert view_name == 'abc'
+    view_names = manager.get_views({'operator'})
+    assert view_names == {'abc', 'def'}
 
-    view_name = manager.get_view({'operator', 'admin'})
-    assert view_name == 'abc'
+    view_names = manager.get_views({'operator', 'admin'})
+    assert view_names == {'abc', 'def'}
 
-    view_name = manager.get_view({'guest'})
-    assert view_name == 'ghi'
+    view_names = manager.get_views({'guest'})
+    assert view_names == {'ghi'}
 
-    view_name = manager.get_view({'nonexistent'})
-    assert view_name is None
+    view_names = manager.get_views({'nonexistent'})
+    assert view_names == set()
 
     await manager.async_close()
 
@@ -53,10 +53,11 @@ async def test_get_view(tmp_path):
 async def test_get_view_paths(tmp_path):
     view_confs = [{'name': 'abc',
                    'roles': ['operator'],
-                   'paths': [{'path': str(tmp_path / 'abc.js')}]},
+                   'paths': [{'path': str(tmp_path / 'abc_1')},
+                             {'path': str(tmp_path / 'abc_2')}]},
                   {'name': 'def',
                    'roles': ['operator', 'admin'],
-                   'paths': [{'path': str(tmp_path / 'def.js')}]},
+                   'paths': [{'path': str(tmp_path / 'def')}]},
                   {'name': 'ghi',
                    'roles': ['guest'],
                    'paths': [{'builtin': 'login'}]}]
@@ -64,10 +65,10 @@ async def test_get_view_paths(tmp_path):
     manager = hat.gui.server.view.ViewManager(view_confs)
 
     view_paths = manager.get_view_paths('abc')
-    assert list(view_paths) == [tmp_path / 'abc.js']
+    assert list(view_paths) == [tmp_path / 'abc_1', tmp_path / 'abc_2']
 
     view_paths = manager.get_view_paths('def')
-    assert list(view_paths) == [tmp_path / 'def.js']
+    assert list(view_paths) == [tmp_path / 'def']
 
     view_paths = manager.get_view_paths('ghi')
     assert view_paths is not None
