@@ -119,8 +119,8 @@ properties:
                         - authorize_url
                         - token_url
                         - client_id
+                        - client_secret
                         - scope
-                        - auth
                         - claims
                         - roles
                     properties:
@@ -130,21 +130,16 @@ properties:
                             type: string
                         authorize_url:
                             type: string
+                        token_url:
+                            type: string
                         client_id:
+                            type: string
+                        client_secret:
                             type: string
                         scope:
                             type: array
                             items:
                                 type: string
-                        auth:
-                            type: object
-                            required:
-                                - login
-                            properties:
-                                login:
-                                    type: string
-                                password:
-                                    type: string
                         claims:
                             type: object
                             required:

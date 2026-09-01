@@ -177,8 +177,8 @@ class UserManager(aio.Resource):
         if not oidc_conf:
             raise Exception("invalid name")
 
-        auth = aiohttp.BasicAuth(oidc_conf['auth']['login'],
-                                 oidc_conf['auth'].get('password', ''))
+        auth = aiohttp.BasicAuth(oidc_conf['client_id'],
+                                 oidc_conf['client_secret'])
 
         headers = {'Content-Type': 'application/x-www-form-urlencoded'}
 
