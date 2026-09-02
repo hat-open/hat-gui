@@ -205,7 +205,7 @@ async def test_login_local(port, client_http, success):
     timestamp = 12345
     user = common.User(name=username,
                        roles=['r1', 'r2'],
-                       view='v_u1')
+                       views={'v_u1'})
 
     def on_create_local_session(name, password):
         assert name == request_username
@@ -260,7 +260,7 @@ async def test_login_local_previous_session(port, client_http):
     def on_create_local_session(name, password):
         session = UserSession(user=common.User(name=username,
                                                roles=['r1', 'r2'],
-                                               view='v_u1'),
+                                               views={'v_u1'}),
                               session_id=session_ids.pop(),
                               timestamp=12345)
         user_session_queue.put_nowait(session)
@@ -315,7 +315,7 @@ async def test_logout(port, client_http, logout_method):
     session_id = 'abcxyz'
     user = common.User(name=username,
                        roles=['r1', 'r2'],
-                       view='v_u1')
+                       views={'v_u1'})
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
@@ -376,7 +376,7 @@ async def test_get_user(port, client_http):
     roles = ['r1', 'r2']
     user = common.User(name=username,
                        roles=roles,
-                       view='v_u1')
+                       views={'v_u1'})
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
@@ -428,7 +428,7 @@ async def test_multiple_users(port, client_http):
     def on_create_local_session(name, password):
         session = UserSession(user=common.User(name=name,
                                                roles=[],
-                                               view=f'v_{name}'),
+                                               views={f'v_{name}'}),
                               session_id=f"session_{name}",
                               timestamp=54321)
         user_session_queue.put_nowait(session)
@@ -503,7 +503,7 @@ async def test_get_ws(port, client_http, ws_addr):
     roles = ['r1', 'r2']
     user = common.User(name=username,
                        roles=roles,
-                       view='v_u1')
+                       views={'v_u1'})
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
@@ -563,7 +563,7 @@ async def test_juggler_connect(port, client_http, ws_addr):
     roles = ['r1', 'r2']
     user = common.User(name=username,
                        roles=roles,
-                       view='v_u1')
+                       views={'v_u1'})
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
@@ -625,7 +625,7 @@ async def test_juggler_request_response(port, client_http, ws_addr):
     roles = ['r1', 'r2']
     user = common.User(name=username,
                        roles=roles,
-                       view='v_u1')
+                       views={'v_u1'})
     adapter_session_queue = aio.Queue()
 
     def on_request(name, data):
@@ -690,7 +690,7 @@ async def test_juggler_state(port, client_http, ws_addr):
     roles = ['r1', 'r2']
     user = common.User(name=username,
                        roles=roles,
-                       view='v_u1')
+                       views={'v_u1'})
     adapter_session_queue = aio.Queue()
 
     def on_create_local_session(name, password):
@@ -751,7 +751,7 @@ async def test_juggler_notify(port, client_http, ws_addr):
     roles = ['r1', 'r2']
     user = common.User(name=username,
                        roles=roles,
-                       view='v_u1')
+                       views={'v_u1'})
     adapter_session_queue = aio.Queue()
 
     def on_create_local_session(name, password):
@@ -808,7 +808,7 @@ async def test_juggler_notify(port, client_http, ws_addr):
     await eventer_client.async_close()
 
 
-async def test_get(port, client_http, tmp_path):
+async def test_get_view(port, client_http, tmp_path):
     view_path = tmp_path / 'v1'
     view_path.mkdir()
     file_path = view_path / 'view_file.html'
@@ -824,7 +824,7 @@ async def test_get(port, client_http, tmp_path):
     roles = ['r1', 'r2']
     user = common.User(name=username,
                        roles=roles,
-                       view=view_conf['name'])
+                       views={view_conf['name']})
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
@@ -848,9 +848,9 @@ async def test_get(port, client_http, tmp_path):
         autoflush_delay=0)
 
     # before login (no initial view)
-    async with client_http.get('view_file.html',
+    async with client_http.get('/view/v1/view_file.html',
                                cookies={'SESSION_ID': session_id}) as resp:
-        assert resp.status == 500
+        assert resp.status == 401
 
     user_login = {'name': username,
                   'password': 'abcxyz'}
@@ -858,23 +858,23 @@ async def test_get(port, client_http, tmp_path):
                                 data=json.encode(user_login)) as resp:
         assert resp.status == 200
 
-    async with client_http.get('view_file.html',
+    async with client_http.get('/view/v1/view_file.html',
                                cookies={'SESSION_ID': session_id}) as resp:
         assert resp.status == 200
         resp_content = await resp.read()
         assert resp_content == file_content
 
     # get with invalid session_id (no initial view)
-    async with client_http.get('view_file.html',
+    async with client_http.get('/view/v1/view_file.html',
                                cookies={'SESSION_ID': 'invalid_id'}) as resp:
-        assert resp.status == 500
+        assert resp.status == 401
 
     # get with emtpy session_id (no initial view)
-    async with client_http.get('view_file.html') as resp:
-        assert resp.status == 500
+    async with client_http.get('/view/v1/view_file.html') as resp:
+        assert resp.status == 401
 
     # get file that does not exist
-    async with client_http.get('non_existing_file.html',
+    async with client_http.get('/view/v1/non_existing_file.html',
                                cookies={'SESSION_ID': session_id}) as resp:
         assert resp.status == 404
 
@@ -906,7 +906,7 @@ async def test_initial_view(port, client_http, tmp_path):
     roles = ['r1', 'r2']
     user = common.User(name=username,
                        roles=roles,
-                       view=view_conf['name'])
+                       views={view_conf['name']})
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
@@ -930,7 +930,7 @@ async def test_initial_view(port, client_http, tmp_path):
         autoflush_delay=0)
 
     # before user login
-    async with client_http.get('index.html') as resp:
+    async with client_http.get('/view/v_init/index.html') as resp:
         assert resp.status == 200
         resp_content = await resp.read()
         assert resp_content == init_view_file_content
@@ -941,27 +941,27 @@ async def test_initial_view(port, client_http, tmp_path):
                                 data=json.encode(user_login)) as resp:
         assert resp.status == 200
 
-    async with client_http.get('index.html',
+    async with client_http.get('/view/v_init/index.html',
                                cookies={'SESSION_ID': session_id}) as resp:
         assert resp.status == 200
         resp_content = await resp.read()
-        assert resp_content == view_file_content
+        assert resp_content == init_view_file_content
 
     # initial view on invalid session_id
-    async with client_http.get('index.html',
+    async with client_http.get('/view/v_init/index.html',
                                cookies={'SESSION_ID': 'invalid_id'}) as resp:
         assert resp.status == 200
         resp_content = await resp.read()
         assert resp_content == init_view_file_content
 
     # initial view on empty session_id
-    async with client_http.get('index.html') as resp:
+    async with client_http.get('/view/v_init/index.html') as resp:
         assert resp.status == 200
         resp_content = await resp.read()
         assert resp_content == init_view_file_content
 
     # get file that does not exist
-    async with client_http.get('non_existing_file.html') as resp:
+    async with client_http.get('/view/v_init/non_existing_file.html') as resp:
         assert resp.status == 404
 
     await server.async_close()
@@ -1029,7 +1029,7 @@ async def test_login_oidc_cb(port, client_http, success):
     timestamp = 12345
     user = common.User(name=username,
                        roles=['r1', 'r2'],
-                       view='v_u1')
+                       views={'v_u1'})
     oidc_queue = aio.Queue()
 
     def on_create_oidc_session(name, code):
@@ -1065,7 +1065,7 @@ async def test_login_oidc_cb(port, client_http, success):
                                allow_redirects=False) as resp:
         if success:
             assert resp.status == 302
-            assert '/index.html' == resp.headers.get('Location')
+            assert '/view/v_u1/index.html' == resp.headers.get('Location')
             session_cookie = resp.cookies.get('SESSION_ID')
             assert session_id == session_cookie.value
             assert session_cookie['httponly']

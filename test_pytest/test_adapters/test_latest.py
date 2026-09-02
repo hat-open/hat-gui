@@ -147,13 +147,13 @@ async def test_create_session():
     state1 = json.Storage()
     user1 = common.User(name='user1',
                         roles={'users'},
-                        view=None)
+                        views=set())
     session1 = await adapter.create_session(user1, state1, notify_cb)
 
     state2 = json.Storage()
     user2 = common.User(name='user2',
                         roles={'not users'},
-                        view=None)
+                        views=set())
     session2 = await adapter.create_session(user2, state2, notify_cb)
 
     assert session1.is_open
@@ -192,7 +192,7 @@ async def test_event_payload():
     state = json.Storage()
     user = common.User(name='user1',
                        roles={'users'},
-                       view=None)
+                       views=set())
     session = await adapter.create_session(user, state, notify_cb)
 
     assert state.data == {}
