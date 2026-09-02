@@ -37,7 +37,7 @@ paths:
         get:
             responses:
                 '302':
-                    decription: redirect to oidc OP
+                    description: redirect to oidc OP
     '/login/oidc/{name}/cb':
         parameters:
           - name: name
@@ -55,7 +55,7 @@ paths:
                 required: true
             responses:
                 '302':
-                    decription: redirect to oidc OP
+                    description: redirect to oidc OP
     '/logout':
         parameters:
           - name: SESSION_ID
@@ -68,9 +68,9 @@ paths:
                 '200':
                     description: success
         get:
-            response:
+            responses:
                 '302':
-                    decription: success
+                    description: success
     '/user':
         parameters:
           - name: SESSION_ID
