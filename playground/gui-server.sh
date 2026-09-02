@@ -50,13 +50,18 @@ address:
 adapters: []
 views:
   - name: login
-    builtin: login
-    conf: null
-users:
-  - name: user1
-    password: $PASSWORD
     roles: []
-    view: null
+    paths:
+        - builtin: login
+users:
+  max_sessions: 10
+  snapshot_path: $DATA_PATH/snapshot.json
+  snapshot_delay: 60
+  local:
+    users:
+      - name: user1
+        password: $PASSWORD
+        roles: []
 initial_view: login
 EOF
 

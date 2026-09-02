@@ -5,20 +5,27 @@ import * as u from '@hat-open/util';
 type State = {
     name: string;
     password: string;
-    remember: boolean;
     message: string | null;
 };
-
 
 const defaultState: State = {
     name: '',
     password: '',
-    remember: false,
     message: null
 };
 
+type Conf = {
+    showLoginForm: boolean;
+    oidcProviders: string[];
+};
+
+let conf: Conf | null = null;
+
 
 async function main() {
+    const confResponse = await fetch('conf.json');
+    conf = await confResponse.json();
+
     const root = document.body.appendChild(document.createElement('div'));
     r.init(root, defaultState, vt);
 }
@@ -26,35 +33,40 @@ async function main() {
 
 function vt(): u.VNode {
     const state = r.get() as State;
+    const showLoginForm = conf?.showLoginForm ?? true;
+    const oidcProviders = conf?.oidcProviders ?? [];
 
-    return ['div.login', {
-        on: {
-            keyup: (evt: KeyboardEvent) => {
-                if (evt.key == 'Enter')
-                    login();
-            }
-        }},
-        (state.message == null ? [] : ['div.message',
-            state.message
-        ]),
-        inputStringVt(
-            'text', 'Name', state.name,
-            value => r.set(['view', 'name'], value)
-        ),
-        inputStringVt(
-            'password', 'Password', state.password,
-            value => r.set(['view', 'password'], value)
-        ),
-        inputBooleanVt(
-            'Remember me', state.remember,
-            value => r.set(['view', 'remember'], value)
-        ),
-        ['button', {
-            on: {
-                click: login
-            }},
-            'Login'
-        ]
+    return ['div.container',
+        showLoginForm ?
+            ['div.login', {
+                on: {
+                    keyup: (evt: KeyboardEvent) => {
+                        if (evt.key == 'Enter')
+                            login();
+                    }
+                }},
+                (state.message == null ? [] : ['div.message',
+                    state.message
+                ]),
+                inputStringVt(
+                    'text', 'Name', state.name,
+                    value => r.set(['name'], value)
+                ),
+                inputStringVt(
+                    'password', 'Password', state.password,
+                    value => r.set(['password'], value)
+                ),
+                ['button', {
+                    on: {
+                        click: login
+                    }},
+                    'Login'
+                ]
+            ] : [],
+        oidcProviders.length > 0 ?
+            ['div.oidc-providers',
+                oidcProviders.map(oidcProviderButtonVt)
+            ] : []
     ];
 }
 
@@ -79,47 +91,37 @@ function inputStringVt(
 }
 
 
-function inputBooleanVt(
-    label: string, value: boolean, changeCb: (value: boolean) => void
-): u.VNodeChild {
-    return [
-        ['label.input',
-            ['input', {
-                props: {
-                    type: 'checkbox',
-                    checked: value
-                },
-                on: {
-                    change: (evt: Event) => {
-                        changeCb((evt.target as HTMLInputElement).checked);
-                    }
-                }
-            }],
-            label
-        ]
+function oidcProviderButtonVt(name: string): u.VNode {
+    return ['button', {
+        on: {
+            click: () => {
+                window.location.assign(
+                    `/login/oidc/${encodeURIComponent(name)}`);
+            }
+        }},
+        `Sign in with ${name}`
     ];
 }
 
 
 async function login() {
-    const state = r.get('view') as State;
+    const state = r.get() as State;
     try {
-        const res = await fetch('/login', {
+        const res = await fetch('/login/local', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 name: state.name,
-                password: state.password,
-                remember: state.remember
+                password: state.password
             })
         });
 
         if (res.status != 200)
-            throw new Error(String(res.body));
+            throw new Error(await res.text());
 
-        window.location.assign('/index.html');
+        window.location.assign('/');
 
     } catch(e) {
         r.change(u.pipe(
@@ -128,6 +130,5 @@ async function login() {
         ));
     }
 }
-
 
 window.addEventListener('load', main);
