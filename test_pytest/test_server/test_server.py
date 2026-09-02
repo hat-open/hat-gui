@@ -204,7 +204,7 @@ async def test_login_local(port, client_http, success):
     session_id = 'abcxyz'
     timestamp = 12345
     user = common.User(name=username,
-                       roles=['r1', 'r2'],
+                       roles={'r1', 'r2'},
                        views={'v_u1'})
 
     def on_create_local_session(name, password):
@@ -259,7 +259,7 @@ async def test_login_local_previous_session(port, client_http):
 
     def on_create_local_session(name, password):
         session = UserSession(user=common.User(name=username,
-                                               roles=['r1', 'r2'],
+                                               roles={'r1', 'r2'},
                                                views={'v_u1'}),
                               session_id=session_ids.pop(),
                               timestamp=12345)
@@ -314,7 +314,7 @@ async def test_logout(port, client_http, logout_method):
     username = 'u1'
     session_id = 'abcxyz'
     user = common.User(name=username,
-                       roles=['r1', 'r2'],
+                       roles={'r1', 'r2'},
                        views={'v_u1'})
 
     def on_create_local_session(name, password):
@@ -373,7 +373,7 @@ async def test_logout(port, client_http, logout_method):
 async def test_get_user(port, client_http):
     username = 'u1'
     session_id = 'abcxyz'
-    roles = ['r1', 'r2']
+    roles = {'r1', 'r2'}
     user = common.User(name=username,
                        roles=roles,
                        views={'v_u1'})
@@ -416,7 +416,7 @@ async def test_get_user(port, client_http):
         assert resp.status == 200
         data = await resp.json()
         assert data == {'name': username,
-                        'roles': roles}
+                        'roles': list(roles)}
 
     await server.async_close()
     await eventer_client.async_close()
@@ -427,7 +427,7 @@ async def test_multiple_users(port, client_http):
 
     def on_create_local_session(name, password):
         session = UserSession(user=common.User(name=name,
-                                               roles=[],
+                                               roles=set(),
                                                views={f'v_{name}'}),
                               session_id=f"session_{name}",
                               timestamp=54321)
@@ -490,7 +490,7 @@ async def test_multiple_users(port, client_http):
         assert resp.status == 200
         data = await resp.json()
         assert data == {'name': last_session.user.name,
-                        'roles': last_session.user.roles}
+                        'roles': list(last_session.user.roles)}
 
     await server.async_close()
     await eventer_client.async_close()
@@ -500,7 +500,7 @@ async def test_get_ws(port, client_http, ws_addr):
     event_queue = aio.Queue()
     username = 'u1'
     session_id = 'abcxyz'
-    roles = ['r1', 'r2']
+    roles = {'r1', 'r2'}
     user = common.User(name=username,
                        roles=roles,
                        views={'v_u1'})
@@ -560,7 +560,7 @@ async def test_juggler_connect(port, client_http, ws_addr):
     event_queue = aio.Queue()
     username = 'u1'
     session_id = 'abcxyz'
-    roles = ['r1', 'r2']
+    roles = {'r1', 'r2'}
     user = common.User(name=username,
                        roles=roles,
                        views={'v_u1'})
@@ -622,7 +622,7 @@ async def test_juggler_request_response(port, client_http, ws_addr):
     event_queue = aio.Queue()
     username = 'u1'
     session_id = 'abcxyz'
-    roles = ['r1', 'r2']
+    roles = {'r1', 'r2'}
     user = common.User(name=username,
                        roles=roles,
                        views={'v_u1'})
@@ -687,7 +687,7 @@ async def test_juggler_state(port, client_http, ws_addr):
     event_queue = aio.Queue()
     username = 'u1'
     session_id = 'abcxyz'
-    roles = ['r1', 'r2']
+    roles = {'r1', 'r2'}
     user = common.User(name=username,
                        roles=roles,
                        views={'v_u1'})
@@ -748,7 +748,7 @@ async def test_juggler_notify(port, client_http, ws_addr):
     event_queue = aio.Queue()
     username = 'u1'
     session_id = 'abcxyz'
-    roles = ['r1', 'r2']
+    roles = {'r1', 'r2'}
     user = common.User(name=username,
                        roles=roles,
                        views={'v_u1'})
@@ -815,13 +815,13 @@ async def test_get_view(port, client_http, tmp_path):
     file_content = b'abc xyz bla'
     file_path.write_bytes(file_content)
     view_conf = {'name': 'v1',
-                 'roles': ['r1', 'r2'],
+                 'roles': {'r1', 'r2'},
                  'paths': [{'path': str(view_path)}]}
     view_manager = ViewManager([view_conf])
 
     username = 'u1'
     session_id = 'abcxyz'
-    roles = ['r1', 'r2']
+    roles = {'r1', 'r2'}
     user = common.User(name=username,
                        roles=roles,
                        views={view_conf['name']})
@@ -888,7 +888,7 @@ async def test_initial_view(port, client_http, tmp_path):
     view_file_content = b'abc xyz bla'
     (view_path / 'index.html').write_bytes(view_file_content)
     view_conf = {'name': 'v1',
-                 'roles': ['r1', 'r2'],
+                 'roles': {'r1', 'r2'},
                  'paths': [{'path': str(view_path)}]}
 
     init_view_path = tmp_path / 'v_init'
@@ -897,13 +897,13 @@ async def test_initial_view(port, client_http, tmp_path):
     (init_view_path / 'index.html').write_bytes(
         init_view_file_content)
     init_view_conf = {'name': 'v_init',
-                      'roles': [],
+                      'roles': set(),
                       'paths': [{'path': str(init_view_path)}]}
     view_manager = ViewManager([view_conf, init_view_conf])
 
     username = 'u1'
     session_id = 'abcxyz'
-    roles = ['r1', 'r2']
+    roles = {'r1', 'r2'}
     user = common.User(name=username,
                        roles=roles,
                        views={view_conf['name']})
@@ -1028,7 +1028,7 @@ async def test_login_oidc_cb(port, client_http, success):
     session_id = 'abcxyz'
     timestamp = 12345
     user = common.User(name=username,
-                       roles=['r1', 'r2'],
+                       roles={'r1', 'r2'},
                        views={'v_u1'})
     oidc_queue = aio.Queue()
 

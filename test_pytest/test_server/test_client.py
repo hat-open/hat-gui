@@ -111,7 +111,7 @@ class Connection(aio.Resource):
 async def test_create_close():
     conn = Connection()
     user = common.User(name='user1',
-                       roles=[],
+                       roles=set(),
                        views={'v1'})
 
     client = hat.gui.server.client.Client(
@@ -132,7 +132,7 @@ async def test_create_close():
 async def test_conn_close():
     conn = Connection()
     user = common.User(name='user1',
-                       roles=[],
+                       roles=set(),
                        views={'v1'})
 
     client = hat.gui.server.client.Client(
@@ -151,7 +151,7 @@ async def test_conn_close():
 async def test_user():
     conn = Connection()
     user = common.User(name='user1',
-                       roles=['r1', 'r2'],
+                       roles={'r1', 'r2'},
                        views={'v1'})
 
     client = hat.gui.server.client.Client(
@@ -168,7 +168,7 @@ async def test_adapter_session():
     session_queue = aio.Queue()
     conn = Connection()
     user = common.User(name='user1',
-                       roles=[],
+                       roles=set(),
                        views={'v1'})
     adapters = {'a1': Adapter(session_cb=session_queue.put_nowait)}
 
@@ -193,7 +193,7 @@ async def test_adapter_session_close():
     session_queue = aio.Queue()
     conn = Connection()
     user = common.User(name='user1',
-                       roles=[],
+                       roles=set(),
                        views={'v1'})
     adapters = {'a1': Adapter(session_cb=session_queue.put_nowait)}
 
@@ -221,7 +221,7 @@ async def test_adapter_session_state():
     conn = Connection()
     conn.state.register_change_cb(conn_state_queue.put_nowait)
     user = common.User(name='user1',
-                       roles=[],
+                       roles=set(),
                        views={'v1'})
     adapters = {'a1': Adapter(session_cb=session_queue.put_nowait)}
 
@@ -255,7 +255,7 @@ async def test_multi_adapter_sessions_state():
     conn = Connection()
     conn.state.register_change_cb(conn_state_queue.put_nowait)
     user = common.User(name='user1',
-                       roles=[],
+                       roles=set(),
                        views={'v1'})
     adapters = {f'a{i}': Adapter(session_cb=session_queue.put_nowait)
                 for i in range(10)}
@@ -307,7 +307,7 @@ async def test_process_request():
 
     conn = Connection()
     user = common.User(name='user1',
-                       roles=[],
+                       roles=set(),
                        views={'v1'})
     adapters = {'a1': Adapter(
         session_cb=session_queue.put_nowait,
@@ -333,7 +333,7 @@ async def test_process_request_unsupported_adapter():
 
     conn = Connection()
     user = common.User(name='user1',
-                       roles=[],
+                       roles=set(),
                        views={'v1'})
     adapters = {'a1': Adapter(
         session_cb=session_queue.put_nowait)}
@@ -358,7 +358,7 @@ async def test_process_request_invalid_request_name():
 
     conn = Connection()
     user = common.User(name='user1',
-                       roles=[],
+                       roles=set(),
                        views={'v1'})
     adapters = {'a1': Adapter(
         session_cb=session_queue.put_nowait)}
@@ -383,7 +383,7 @@ async def test_process_request_conn_closed():
 
     conn = Connection()
     user = common.User(name='user1',
-                       roles=[],
+                       roles=set(),
                        views={'v1'})
     adapters = {'a1': Adapter(
         session_cb=session_queue.put_nowait)}
@@ -417,7 +417,7 @@ async def test_process_request_session_exc():
 
     conn = Connection()
     user = common.User(name='user1',
-                       roles=[],
+                       roles=set(),
                        views={'v1'})
     adapters = {'a1': Adapter(
         session_cb=session_queue.put_nowait,
@@ -447,7 +447,7 @@ async def test_notify():
 
     conn = Connection(notify_cb=on_conn_notify)
     user = common.User(name='user1',
-                       roles=[],
+                       roles=set(),
                        views={'v1'})
     adapters = {'a1': Adapter(
         session_cb=session_queue.put_nowait)}
