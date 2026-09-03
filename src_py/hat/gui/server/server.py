@@ -302,7 +302,8 @@ class Server(aio.Resource):
         return aiohttp.web.Response(
             content_type='application/json',
             text=json.encode({'name': session.user.name,
-                              'roles': list(session.user.roles)}))
+                              'roles': list(session.user.roles),
+                              'views': list(session.user.views)}))
 
     async def _process_get_ws(self, req):
         mlog.debug("processing GET /ws")

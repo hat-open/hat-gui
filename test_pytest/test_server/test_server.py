@@ -374,9 +374,10 @@ async def test_get_user(port, client_http):
     username = 'u1'
     session_id = 'abcxyz'
     roles = {'r1', 'r2'}
+    views = {'v_u1'}
     user = common.User(name=username,
                        roles=roles,
-                       views={'v_u1'})
+                       views=views)
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
@@ -416,7 +417,8 @@ async def test_get_user(port, client_http):
         assert resp.status == 200
         data = await resp.json()
         assert data == {'name': username,
-                        'roles': list(roles)}
+                        'roles': list(roles),
+                        'views': list(views)}
 
     await server.async_close()
     await eventer_client.async_close()
@@ -490,7 +492,8 @@ async def test_multiple_users(port, client_http):
         assert resp.status == 200
         data = await resp.json()
         assert data == {'name': last_session.user.name,
-                        'roles': list(last_session.user.roles)}
+                        'roles': list(last_session.user.roles),
+                        'views': list(last_session.user.views)}
 
     await server.async_close()
     await eventer_client.async_close()

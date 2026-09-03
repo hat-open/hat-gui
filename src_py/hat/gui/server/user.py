@@ -197,11 +197,14 @@ class UserManager(aio.Resource):
 
                 data = await res.json()
 
+        access_token = data['access_token']
+        refresh_token = data.get('refresh_token')
+
         claims = json.decode(
             _base64url_decode(data['id_token'].split('.')[1]).decode('utf-8'))
 
-        name = claims[oidc_conf['claims']['name']]
-        if not isinstance(name, str):
+        user_name = claims[oidc_conf['claims']['name']]
+        if not isinstance(user_name, str):
             raise TypeError('invalid name type')
 
         roles = set()
@@ -212,13 +215,16 @@ class UserManager(aio.Resource):
 
         views = self._view_manager.get_views(roles)
 
-        user = common.User(name=name,
+        user = common.User(name=user_name,
                            roles=roles,
                            views=views)
 
         session = _OidcUserSession(user=user,
                                    session_id=self._generate_session_id(),
-                                   timestamp=time.time())
+                                   timestamp=time.time(),
+                                   oidc_conf=oidc_conf,
+                                   access_token=access_token,
+                                   refresh_token=refresh_token)
 
         await self._add_session(session)
 
@@ -339,16 +345,34 @@ class _OidcUserSession(UserSession):
     def __init__(self,
                  user: common.User,
                  session_id: UserSessionId,
-                 timestamp: float):
+                 timestamp: float,
+                 oidc_conf: json.Data,
+                 access_token: str,
+                 refresh_token: str | None):
         super().__init__(user=user,
                          session_id=session_id,
                          timestamp=timestamp)
 
+        self._oidc_conf = oidc_conf
+        self._access_token = access_token
+        self._refresh_token = refresh_token
         self._async_group = aio.Group()
 
     @property
     def async_group(self) -> aio.Group:
         return self._async_group
+
+    @property
+    def name(self) -> str:
+        return self._oidc_conf['name']
+
+    @property
+    def access_token(self) -> str:
+        return self._access_token
+
+    @property
+    def refresh_token(self) -> str | None:
+        return self._refresh_token
 
 
 def _encode_sessions(sessions: Iterable[UserSession]
@@ -374,31 +398,31 @@ def _decode_sessions(users_conf: json.Data,
                      view_manager: ViewManager,
                      data: json.Data
                      ) -> Iterable[UserSession]:
-    local_user_confs = {
-        local_user_conf['name']: local_user_conf
-        for local_user_conf in users_conf['local']['users']
-    } if 'local' in users_conf else {}
-    for i in data['local']:
-        try:
-            yield _decode_local_session(local_user_confs=local_user_confs,
-                                        view_manager=view_manager,
-                                        data=i)
+    if 'local' in users_conf:
+        local_user_confs = {
+            local_user_conf['name']: local_user_conf
+            for local_user_conf in users_conf['local']['users']}
+        for i in data['local']:
+            try:
+                yield _decode_local_session(local_user_confs=local_user_confs,
+                                            view_manager=view_manager,
+                                            data=i)
 
-        except Exception as e:
-            mlog.warning("error decoding local session: %s", e, exc_info=e)
+            except Exception as e:
+                mlog.warning("error decoding local session: %s", e, exc_info=e)
 
-    oidc_confs = {
-        oidc_conf['name']: oidc_conf
-        for oidc_conf in users_conf['oidc']
-    } if 'oidc' in users_conf else {}
-    for i in data['oidc']:
-        try:
-            yield _decode_oidc_session(oidc_confs=oidc_confs,
-                                       view_manager=view_manager,
-                                       data=i)
+    if 'oidc' in users_conf:
+        oidc_confs = {
+            oidc_conf['name']: oidc_conf
+            for oidc_conf in users_conf['oidc']}
+        for i in data['oidc']:
+            try:
+                yield _decode_oidc_session(oidc_confs=oidc_confs,
+                                           view_manager=view_manager,
+                                           data=i)
 
-        except Exception as e:
-            mlog.warning("error decoding oidc session: %s", e, exc_info=e)
+            except Exception as e:
+                mlog.warning("error decoding oidc session: %s", e, exc_info=e)
 
 
 def _encode_local_session(session: _LocalUserSession) -> json.Data:
@@ -433,24 +457,35 @@ def _encode_oidc_session(session: _OidcUserSession) -> json.Data:
     return {'user': {'name': session.user.name,
                      'roles': list(session.user.roles)},
             'session_id': session.session_id,
-            'timestamp': session.timestamp}
+            'timestamp': session.timestamp,
+            'name': session.name,
+            'access_token': session.access_token,
+            'refresh_token': session.refresh_token}
 
 
 def _decode_oidc_session(oidc_confs: dict[str, json.Data],
                          view_manager: ViewManager,
                          data: json.Data
                          ) -> _OidcUserSession:
-    name = data['user']['name']
+    name = data['name']
+
+    oidc_conf = oidc_confs.get(name)
+    if not oidc_conf:
+        raise Exception('oidc not available')
+
     roles = set(data['user']['roles'])
     views = view_manager.get_views(roles)
 
-    user = common.User(name=name,
+    user = common.User(name=data['user']['name'],
                        roles=roles,
                        views=views)
 
     return _OidcUserSession(user=user,
                             session_id=data['session_id'],
-                            timestamp=data['timestamp'])
+                            timestamp=data['timestamp'],
+                            oidc_conf=oidc_conf,
+                            access_token=data['access_token'],
+                            refresh_token=data['refresh_token'])
 
 
 def _base64url_decode(data: str) -> bytes:

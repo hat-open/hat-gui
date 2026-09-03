@@ -89,10 +89,15 @@ paths:
                                 required:
                                     - name
                                     - roles
+                                    - views
                                 properties:
                                     name:
                                         type: string
                                     roles:
+                                        type: array
+                                        items:
+                                            type: string
+                                    views:
                                         type: array
                                         items:
                                             type: string
