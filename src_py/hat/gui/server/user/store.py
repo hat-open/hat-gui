@@ -26,7 +26,7 @@ async def create_store(async_group: aio.Group,
     store._local_manager = local_manager
     store._oidc_manager = oidc_manager
     store._tmp_path = store._path.with_suffix(store._path.suffix + '.tmp')
-    store._change_event = aio.Event()
+    store._change_event = asyncio.Event()
     store._executor = aio.Executor(log_exceptions=False)
 
     try:
