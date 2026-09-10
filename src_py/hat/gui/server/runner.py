@@ -332,6 +332,7 @@ class ServerRunner(aio.Resource):
             port=self._conf['address']['port'],
             name=self._conf['name'],
             initial_view=self._conf.get('initial_view'),
+            session_duration=self._conf['users'].get('session_duration'),
             view_manager=self._view_manager,
             user_manager=self._user_manager,
             adapter_manager=self._adapter_manager,

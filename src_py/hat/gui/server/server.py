@@ -1,5 +1,6 @@
 """GUI web server"""
 
+import asyncio
 import contextlib
 import logging
 import secrets
@@ -30,6 +31,7 @@ async def create_server(host: str,
                         port: int,
                         name: str,
                         initial_view: str | None,
+                        session_duration: float | None,
                         view_manager: hat.gui.server.view.ViewManager,
                         user_manager: hat.gui.server.user.UserManager,
                         adapter_manager: hat.gui.server.adapter.AdapterManager,
@@ -40,6 +42,7 @@ async def create_server(host: str,
     server = Server()
     server._name = name
     server._initial_view = initial_view
+    server._session_duration = session_duration
     server._view_manager = view_manager
     server._user_manager = user_manager
     server._adapter_manager = adapter_manager
@@ -69,8 +72,8 @@ async def create_server(host: str,
             '/logout',
             server._process_get_logout),
         aiohttp.web.get(
-            '/user',
-            server._process_get_user),
+            '/session',
+            server._process_get_session),
         aiohttp.web.get(
             '/ws',
             server._process_get_ws),
@@ -286,8 +289,8 @@ class Server(aio.Resource):
 
         raise aiohttp.web.HTTPFound(redirect_url)
 
-    async def _process_get_user(self, req):
-        mlog.debug("processing GET /user")
+    async def _process_get_session(self, req):
+        mlog.debug("processing GET /session")
 
         try:
             session = self._get_user_session(req)
@@ -295,15 +298,17 @@ class Server(aio.Resource):
                 raise Exception("user session not found")
 
         except Exception as e:
-            mlog.error("error processing GET /user: %s", e, exc_info=e)
+            mlog.error("error processing GET /session: %s", e, exc_info=e)
 
             raise aiohttp.web.HTTPBadRequest(text=str(e))
 
         return aiohttp.web.Response(
             content_type='application/json',
-            text=json.encode({'name': session.user.name,
-                              'roles': list(session.user.roles),
-                              'views': list(session.user.views)}))
+            text=json.encode({'user': {'name': session.user.name,
+                                       'roles': list(session.user.roles),
+                                       'views': list(session.user.views)},
+                              'created': session.created,
+                              'duration': self._session_duration}))
 
     async def _process_get_ws(self, req):
         mlog.debug("processing GET /ws")
@@ -323,33 +328,27 @@ class Server(aio.Resource):
             conn = await self._srv.create_connection(req)
 
             try:
-                mlog.debug("acquiring session")
-                session.acquire()
+                mlog.debug("creating client")
+                client = hat.gui.server.client.Client(
+                    conn=conn,
+                    user=session.user,
+                    adapter_manager=self._adapter_manager)
+
+                client.async_group.spawn(
+                    aio.call_on_done, session.wait_closing(), client.close)
+                client.async_group.spawn(
+                    self._update_session_loop, session)
+
+                self._clients[conn] = client
 
                 try:
-                    mlog.debug("creating client")
-                    client = hat.gui.server.client.Client(
-                        conn=conn,
-                        user=session.user,
-                        adapter_manager=self._adapter_manager)
+                    await self._register_clients_event()
 
-                    client.async_group.spawn(
-                        aio.call_on_done, session.wait_closing(), client.close)
-
-                    self._clients[conn] = client
-
-                    try:
-                        await self._register_clients_event()
-
-                        await client.wait_closing()
-
-                    finally:
-                        self._clients.pop(conn, None)
-                        await aio.uncancellable(self._register_clients_event())
+                    await client.wait_closing()
 
                 finally:
-                    mlog.debug("releasing session")
-                    session.release()
+                    self._clients.pop(conn, None)
+                    await aio.uncancellable(self._register_clients_event())
 
             finally:
                 await aio.uncancellable(conn.async_close())
@@ -395,15 +394,26 @@ class Server(aio.Resource):
 
         raise aiohttp.web.HTTPNotFound()
 
+    async def _update_session_loop(self, session):
+        try:
+            while session.is_open:
+                session.update()
+
+                await asyncio.sleep(5)
+
+        except Exception as e:
+            mlog.error("update session loop error: %s", e, exc_info=e)
+
     def _get_user_session(self, req):
         session_id = req.cookies.get(_session_id_cookie_name)
         if not session_id:
             return
 
         session = self._user_manager.get_session(session_id)
-        if session:
-            mlog.debug("refreshing session")
-            session.refresh()
+        if not (session and session.is_open):
+            return
+
+        session.update()
 
         return session
 

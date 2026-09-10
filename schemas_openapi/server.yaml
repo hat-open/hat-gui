@@ -71,7 +71,7 @@ paths:
             responses:
                 '302':
                     description: success
-    '/user':
+    '/session':
         parameters:
           - name: SESSION_ID
             in: cookie
@@ -87,20 +87,33 @@ paths:
                             schema:
                                 type: object
                                 required:
-                                    - name
-                                    - roles
-                                    - views
+                                    - user
+                                    - created
+                                    - duration
                                 properties:
-                                    name:
-                                        type: string
-                                    roles:
-                                        type: array
-                                        items:
-                                            type: string
-                                    views:
-                                        type: array
-                                        items:
-                                            type: string
+                                    user:
+                                        type: object
+                                        required:
+                                            - name
+                                            - roles
+                                            - views
+                                        properties:
+                                            name:
+                                                type: string
+                                            roles:
+                                                type: array
+                                                items:
+                                                    type: string
+                                            views:
+                                                type: array
+                                                items:
+                                                    type: string
+                                    created:
+                                        type: number
+                                    duration:
+                                        type:
+                                            - number
+                                            - 'null'
     '/ws':
         parameters:
           - name: SESSION_ID

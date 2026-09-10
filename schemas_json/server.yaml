@@ -91,24 +91,17 @@ properties:
         type: object
         required:
             - max_sessions
-            - snapshot_path
-            - snapshot_delay
         properties:
             max_sessions:
                 type: integer
             snapshot_path:
                 type: string
-            snapshot_delay:
+            session_duration:
                 type: number
             local:
-                type: object
-                required:
-                    - users
-                properties:
-                    users:
-                        type: array
-                        items:
-                            $ref: "hat-gui://server.yaml#/$defs/local_user"
+                type: array
+                items:
+                    $ref: "hat-gui://server.yaml#/$defs/local_user"
             oidc:
                 type: array
                 items:
