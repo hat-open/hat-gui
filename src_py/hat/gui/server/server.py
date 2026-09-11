@@ -22,8 +22,6 @@ mlog: logging.Logger = logging.getLogger(__name__)
 """Module logger"""
 
 _session_id_cookie_name = 'SESSION_ID'
-_session_id_cookie_max_age = 60 * 60 * 24 * 365
-
 _oidc_state_cookie_name = 'OIDC_STATE'
 
 
@@ -32,6 +30,7 @@ async def create_server(host: str,
                         name: str,
                         initial_view: str | None,
                         session_duration: float | None,
+                        session_cookie_max_age: int | None,
                         view_manager: hat.gui.server.view.ViewManager,
                         user_manager: hat.gui.server.user.UserManager,
                         adapter_manager: hat.gui.server.adapter.AdapterManager,
@@ -43,6 +42,7 @@ async def create_server(host: str,
     server._name = name
     server._initial_view = initial_view
     server._session_duration = session_duration
+    server._session_cookie_max_age = session_cookie_max_age
     server._view_manager = view_manager
     server._user_manager = user_manager
     server._adapter_manager = adapter_manager
@@ -178,7 +178,7 @@ class Server(aio.Resource):
         res = aiohttp.web.Response()
         res.set_cookie(_session_id_cookie_name,
                        session.session_id,
-                       max_age=_session_id_cookie_max_age,
+                       max_age=self._session_cookie_max_age,
                        httponly=True)
 
         return res
@@ -248,7 +248,7 @@ class Server(aio.Resource):
         res_exc = aiohttp.web.HTTPFound(redirect_url)
         res_exc.set_cookie(_session_id_cookie_name,
                            session.session_id,
-                           max_age=_session_id_cookie_max_age,
+                           max_age=self._session_cookie_max_age,
                            httponly=True)
 
         raise res_exc

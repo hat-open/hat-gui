@@ -98,6 +98,8 @@ properties:
                 type: string
             session_duration:
                 type: number
+            session_cookie_max_age:
+                type: integer
             local:
                 type: array
                 items:

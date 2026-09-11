@@ -215,6 +215,7 @@ async def test_empty_server(port, ws_addr):
         name='name',
         initial_view=None,
         session_duration=None,
+        session_cookie_max_age=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -230,7 +231,8 @@ async def test_empty_server(port, ws_addr):
 
 
 @pytest.mark.parametrize('success', [True, False])
-async def test_login_local(port, client_http, success):
+@pytest.mark.parametrize('session_cookie_max_age', [None, 123])
+async def test_login_local(port, client_http, success, session_cookie_max_age):
     username = 'u1'
     request_username = 'abc_u1'
     request_passwd = '123xyz'
@@ -260,6 +262,7 @@ async def test_login_local(port, client_http, success):
         name='name',
         initial_view=None,
         session_duration=None,
+        session_cookie_max_age=session_cookie_max_age,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -275,7 +278,12 @@ async def test_login_local(port, client_http, success):
             session_cookie = resp.cookies.get('SESSION_ID')
             assert session_cookie.value == session_id
             assert session_cookie['httponly']
-            assert int(session_cookie.get('max-age')) == (60 * 60 * 24 * 365)
+
+            if session_cookie_max_age is None:
+                assert not session_cookie['max-age']
+
+            else:
+                assert int(session_cookie['max-age']) == session_cookie_max_age
 
         else:
             resp.status == 400
@@ -308,6 +316,7 @@ async def test_login_local_previous_session(port, client_http):
         name='name',
         initial_view=None,
         session_duration=None,
+        session_cookie_max_age=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -366,6 +375,7 @@ async def test_logout(port, client_http, logout_method):
         name='name',
         initial_view=None,
         session_duration=None,
+        session_cookie_max_age=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -430,6 +440,7 @@ async def test_get_user(port, client_http):
         name='name',
         initial_view=None,
         session_duration=session_duration,
+        session_cookie_max_age=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -485,6 +496,7 @@ async def test_multiple_users(port, client_http):
         name='name',
         initial_view=None,
         session_duration=None,
+        session_cookie_max_age=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -565,6 +577,7 @@ async def test_get_ws(port, client_http, ws_addr):
         name='name',
         initial_view=None,
         session_duration=None,
+        session_cookie_max_age=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -625,6 +638,7 @@ async def test_juggler_connect(port, client_http, ws_addr):
         name='name',
         initial_view=None,
         session_duration=None,
+        session_cookie_max_age=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -696,6 +710,7 @@ async def test_juggler_request_response(port, client_http, ws_addr):
         name='name',
         initial_view=None,
         session_duration=None,
+        session_cookie_max_age=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -755,6 +770,7 @@ async def test_juggler_state(port, client_http, ws_addr):
         name='name',
         initial_view=None,
         session_duration=None,
+        session_cookie_max_age=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -816,6 +832,7 @@ async def test_juggler_notify(port, client_http, ws_addr):
         name='name',
         initial_view=None,
         session_duration=None,
+        session_cookie_max_age=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -885,6 +902,7 @@ async def test_get_view(port, client_http, tmp_path):
         name='name',
         initial_view=None,
         session_duration=None,
+        session_cookie_max_age=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -967,6 +985,7 @@ async def test_initial_view(port, client_http, tmp_path):
         name='name',
         initial_view='v_init',
         session_duration=None,
+        session_cookie_max_age=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -1037,6 +1056,7 @@ async def test_login_oidc(port, client_http, success):
         name='name',
         initial_view=None,
         session_duration=None,
+        session_cookie_max_age=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -1065,7 +1085,9 @@ async def test_login_oidc(port, client_http, success):
 
 
 @pytest.mark.parametrize('success', [True, False])
-async def test_login_oidc_cb(port, client_http, success):
+@pytest.mark.parametrize('session_cookie_max_age', [None, 123])
+async def test_login_oidc_cb(port, client_http, success,
+                             session_cookie_max_age):
     code_req = 'code xyz'
     state_cookie = 'state xyz'
     oidc_name = 'oidc_xyz'
@@ -1096,6 +1118,7 @@ async def test_login_oidc_cb(port, client_http, success):
         name='name',
         initial_view=None,
         session_duration=None,
+        session_cookie_max_age=session_cookie_max_age,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -1113,7 +1136,12 @@ async def test_login_oidc_cb(port, client_http, success):
             session_cookie = resp.cookies.get('SESSION_ID')
             assert session_id == session_cookie.value
             assert session_cookie['httponly']
-            assert int(session_cookie.get('max-age')) == (60 * 60 * 24 * 365)
+
+            if session_cookie_max_age is None:
+                assert not session_cookie['max-age']
+
+            else:
+                assert int(session_cookie['max-age']) == session_cookie_max_age
 
         else:
             resp.status == 400
