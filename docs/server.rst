@@ -91,7 +91,7 @@ EventerClient, enabling queries and event registration. Each adapter is
 notified with events sent by Event Server based on its subscriptions.
 
 Server is responsible for creating new instances of AdapterSessions
-associated with backend-frontend communication session. AdapterSession
+associated with backend-frontend jugger communication session. AdapterSession
 represents adapter's interface to single authenticated frontend client.
 It enables full juggler communication - request/response, server state and
 server notifications.
@@ -116,13 +116,14 @@ Views
 
 Views are collection of frontend resources (HTML, JavaScript, CSS, ...)
 responsible for graphical representation of adapters state and interaction
-with user. Each view is represented with content of file system directory.
+with user. Each view is represented with content of file system directories.
 These files can be obtained by frontend using HTTP GET requests.
 
-Server chooses client's view depending on authenticated user and its associated
-roles. Ordered list of all available views is defined as part of GUI Server's
-configuration where each view has its associated roles. Server chooses first
-view that has at least one role matching one of authenticated user roles.
+Server provides client's views depending on authenticated user and its
+associated roles. Ordered list of all available views is defined as part of GUI
+Server's configuration where each view has its associated roles. Server
+redirects client to first view that has at least one role matching one of
+authenticated user roles.
 
 In addition to views for authenticated users, GUI Server's configuration
 defines single view that is available to non authenticated users.
@@ -143,34 +144,55 @@ user session. It is uniquely identified with ``SESSION_ID`` that is provided
 as HTTP cookie as part of all HTTP requests sent from frontend to backend.
 
 New user session is created after successful authentication procedure. Lifetime
-of user session is determined by server based on:
-
-* ...
+of user session is determined by server configuration parameters.
 
 Once user session is closed, future HTTP requests identifying this session
-are considered unauthenticated. All active websocket connections, that are
+are considered unauthenticated. All active WebSocket connections, that are
 associated with session being closed, are closed during closing of session.
 
 
 Backend - frontend communication
 --------------------------------
 
+Server provides communication endpoints based on REST and Juggler
+communication.
+
+
 REST Communication
 ''''''''''''''''''
 
-endpoints
+Available endpoints are specified by `OpenAPI Schema`_:
 
-* '/login'
+* '/login/local'
+
+  Login for localy defined users (users specified as part of Server's
+  configuration).
+
+* '/login/oidc/{name}'
+
+  Redirects to OpenID Connect's provider.
+
+* '/login/oidc/{name}/cb'
+
+  OpenID Connect callback endpoint.
+
 * '/logout'
-* '/user'
+
+  User logout.
+
+* '/session'
+
+  Information associated with currently active user session.
 
 
 Juggler Communication
 '''''''''''''''''''''
 
-available only to authenticated users
+Juggler communication is available only to authenticated users.
 
-'/ws' endpoint
+Juggler connection is created by accessing '/ws' WebSocket endpoint.
+
+Supported communication includes:
 
 * request/response
 
