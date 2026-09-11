@@ -1,12 +1,16 @@
 import aiohttp
+import time
+
 import pytest
+
 
 from hat import aio
 from hat import json
 from hat import util
 import hat.event.common
 
-from hat.gui import common
+from hat.gui.common import User
+from hat.gui.server.user import common
 from hat.gui.server.view import ViewManager
 import hat.gui.server.server
 import hat.gui.server.user
@@ -69,16 +73,44 @@ class Adapter(common.Adapter):
 
 class UserSession(hat.gui.server.user.UserSession):
 
-    def __init__(self, user, session_id, timestamp):
-        super().__init__(user=user,
-                         session_id=session_id,
-                         timestamp=timestamp)
+    def __init__(self, user, session_id, timestamp=None, update_cb=None):
+        self._user = user
+        self._session_id = session_id
 
+        if timestamp is None:
+            self._created = time.time()
+            self._updated = self._created
+        else:
+            self._created = timestamp
+            self._updated = timestamp
+
+        self._update_cb = update_cb
         self._async_group = aio.Group()
 
     @property
     def async_group(self) -> aio.Group:
         return self._async_group
+
+    @property
+    def user(self) -> User:
+        return self._user
+
+    @property
+    def session_id(self) -> common.UserSessionId:
+        return self._session_id
+
+    @property
+    def created(self) -> common.Timestamp:
+        return self._created
+
+    @property
+    def updated(self) -> common.Timestamp:
+        return self._updated
+
+    def update(self):
+        self._updated = time.time()
+        if self._update_cb:
+            self._update_cb(self)
 
 
 class UserManager:
@@ -182,6 +214,7 @@ async def test_empty_server(port, ws_addr):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -202,10 +235,9 @@ async def test_login_local(port, client_http, success):
     request_username = 'abc_u1'
     request_passwd = '123xyz'
     session_id = 'abcxyz'
-    timestamp = 12345
-    user = common.User(name=username,
-                       roles={'r1', 'r2'},
-                       views={'v_u1'})
+    user = User(name=username,
+                roles={'r1', 'r2'},
+                views={'v_u1'})
 
     def on_create_local_session(name, password):
         assert name == request_username
@@ -213,8 +245,7 @@ async def test_login_local(port, client_http, success):
 
         if success:
             return UserSession(user=user,
-                               session_id=session_id,
-                               timestamp=timestamp)
+                               session_id=session_id)
 
         raise Exception()
 
@@ -228,6 +259,7 @@ async def test_login_local(port, client_http, success):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -261,8 +293,7 @@ async def test_login_local_previous_session(port, client_http):
         session = UserSession(user=common.User(name=username,
                                                roles={'r1', 'r2'},
                                                views={'v_u1'}),
-                              session_id=session_ids.pop(),
-                              timestamp=12345)
+                              session_id=session_ids.pop())
         user_session_queue.put_nowait(session)
         return session
 
@@ -276,6 +307,7 @@ async def test_login_local_previous_session(port, client_http):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -319,8 +351,7 @@ async def test_logout(port, client_http, logout_method):
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
-                              session_id=session_id,
-                              timestamp=12345)
+                              session_id=session_id)
         user_session_queue.put_nowait(session)
         return session
 
@@ -334,6 +365,7 @@ async def test_logout(port, client_http, logout_method):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -373,6 +405,8 @@ async def test_logout(port, client_http, logout_method):
 async def test_get_user(port, client_http):
     username = 'u1'
     session_id = 'abcxyz'
+    session_duration = 123
+    timestamp = 12345
     roles = {'r1', 'r2'}
     views = {'v_u1'}
     user = common.User(name=username,
@@ -382,7 +416,7 @@ async def test_get_user(port, client_http):
     def on_create_local_session(name, password):
         session = UserSession(user=user,
                               session_id=session_id,
-                              timestamp=12345)
+                              timestamp=timestamp)
         return session
 
     user_manager = UserManager(create_local_session_cb=on_create_local_session)
@@ -395,6 +429,7 @@ async def test_get_user(port, client_http):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=session_duration,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -402,7 +437,7 @@ async def test_get_user(port, client_http):
         autoflush_delay=0)
 
     # get user before login
-    async with client_http.get('/user',
+    async with client_http.get('/session',
                                cookies={'SESSION_ID': session_id}) as resp:
         assert resp.status == 400
 
@@ -412,13 +447,15 @@ async def test_get_user(port, client_http):
                                 data=json.encode(user_login)) as resp:
         assert resp.status == 200
 
-    async with client_http.get('/user',
+    async with client_http.get('/session',
                                cookies={'SESSION_ID': session_id}) as resp:
         assert resp.status == 200
         data = await resp.json()
-        assert data == {'name': username,
-                        'roles': list(roles),
-                        'views': list(views)}
+        assert data == {'user': {'name': username,
+                                 'roles': list(roles),
+                                 'views': list(views)},
+                        'created': timestamp,
+                        'duration': session_duration}
 
     await server.async_close()
     await eventer_client.async_close()
@@ -426,13 +463,14 @@ async def test_get_user(port, client_http):
 
 async def test_multiple_users(port, client_http):
     user_session_queue = aio.Queue()
+    timestamp = 54321
 
     def on_create_local_session(name, password):
         session = UserSession(user=common.User(name=name,
                                                roles=set(),
                                                views={f'v_{name}'}),
                               session_id=f"session_{name}",
-                              timestamp=54321)
+                              timestamp=timestamp)
         user_session_queue.put_nowait(session)
         return session
 
@@ -446,6 +484,7 @@ async def test_multiple_users(port, client_http):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -487,13 +526,15 @@ async def test_multiple_users(port, client_http):
     # get last user
     last_session = user_sessions[-1]
     async with client_http.get(
-            '/user',
+            '/session',
             cookies={'SESSION_ID': last_session.session_id}) as resp:
         assert resp.status == 200
         data = await resp.json()
-        assert data == {'name': last_session.user.name,
-                        'roles': list(last_session.user.roles),
-                        'views': list(last_session.user.views)}
+        assert data == {'user': {'name': last_session.user.name,
+                                 'roles': list(last_session.user.roles),
+                                 'views': list(last_session.user.views)},
+                        'created': timestamp,
+                        'duration': None}
 
     await server.async_close()
     await eventer_client.async_close()
@@ -510,8 +551,7 @@ async def test_get_ws(port, client_http, ws_addr):
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
-                              session_id=session_id,
-                              timestamp=12345)
+                              session_id=session_id)
         return session
 
     user_manager = UserManager(create_local_session_cb=on_create_local_session)
@@ -524,6 +564,7 @@ async def test_get_ws(port, client_http, ws_addr):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -570,8 +611,7 @@ async def test_juggler_connect(port, client_http, ws_addr):
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
-                              session_id=session_id,
-                              timestamp=12345)
+                              session_id=session_id)
         return session
 
     user_manager = UserManager(create_local_session_cb=on_create_local_session)
@@ -584,6 +624,7 @@ async def test_juggler_connect(port, client_http, ws_addr):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -638,8 +679,7 @@ async def test_juggler_request_response(port, client_http, ws_addr):
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
-                              session_id=session_id,
-                              timestamp=12345)
+                              session_id=session_id)
         return session
 
     adapters = {'a1': Adapter(session_cb=adapter_session_queue.put_nowait,
@@ -655,6 +695,7 @@ async def test_juggler_request_response(port, client_http, ws_addr):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -698,8 +739,7 @@ async def test_juggler_state(port, client_http, ws_addr):
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
-                              session_id=session_id,
-                              timestamp=12345)
+                              session_id=session_id)
         return session
 
     adapters = {'a1': Adapter(session_cb=adapter_session_queue.put_nowait)}
@@ -714,6 +754,7 @@ async def test_juggler_state(port, client_http, ws_addr):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -759,8 +800,7 @@ async def test_juggler_notify(port, client_http, ws_addr):
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
-                              session_id=session_id,
-                              timestamp=12345)
+                              session_id=session_id)
         return session
 
     adapters = {'a1': Adapter(session_cb=adapter_session_queue.put_nowait)}
@@ -775,6 +815,7 @@ async def test_juggler_notify(port, client_http, ws_addr):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -831,8 +872,7 @@ async def test_get_view(port, client_http, tmp_path):
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
-                              session_id=session_id,
-                              timestamp=12345)
+                              session_id=session_id)
         return session
 
     user_manager = UserManager(create_local_session_cb=on_create_local_session)
@@ -844,6 +884,7 @@ async def test_get_view(port, client_http, tmp_path):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -913,8 +954,7 @@ async def test_initial_view(port, client_http, tmp_path):
 
     def on_create_local_session(name, password):
         session = UserSession(user=user,
-                              session_id=session_id,
-                              timestamp=12345)
+                              session_id=session_id)
         return session
 
     user_manager = UserManager(create_local_session_cb=on_create_local_session)
@@ -926,6 +966,7 @@ async def test_initial_view(port, client_http, tmp_path):
         port=port,
         name='name',
         initial_view='v_init',
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -995,6 +1036,7 @@ async def test_login_oidc(port, client_http, success):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
@@ -1029,7 +1071,6 @@ async def test_login_oidc_cb(port, client_http, success):
     oidc_name = 'oidc_xyz'
     username = 'u1'
     session_id = 'abcxyz'
-    timestamp = 12345
     user = common.User(name=username,
                        roles={'r1', 'r2'},
                        views={'v_u1'})
@@ -1040,8 +1081,7 @@ async def test_login_oidc_cb(port, client_http, success):
 
         if success:
             return UserSession(user=user,
-                               session_id=session_id,
-                               timestamp=timestamp)
+                               session_id=session_id)
 
         raise Exception()
 
@@ -1055,6 +1095,7 @@ async def test_login_oidc_cb(port, client_http, success):
         port=port,
         name='name',
         initial_view=None,
+        session_duration=None,
         view_manager=view_manager,
         user_manager=user_manager,
         adapter_manager=adapter_manager,
