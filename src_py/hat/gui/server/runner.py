@@ -26,7 +26,6 @@ class MainRunner(aio.Resource):
         self._loop = asyncio.get_running_loop()
         self._async_group = aio.Group()
         self._view_manager = None
-        self._user_manager = None
         self._adapter_infos = collections.deque()
         self._eventer_component = None
         self._eventer_client = None
@@ -58,12 +57,6 @@ class MainRunner(aio.Resource):
         self._view_manager = hat.gui.server.view.ViewManager(
             view_confs=self._conf['views'])
         _bind_resource(self.async_group, self._view_manager)
-
-        mlog.debug("creating user manager")
-        self._user_manager = await hat.gui.server.user.create_manager(
-            users_conf=self._conf['users'],
-            view_manager=self._view_manager)
-        _bind_resource(self.async_group, self._user_manager)
 
         event_server_conf = self._conf['event_server']
 
@@ -111,7 +104,6 @@ class MainRunner(aio.Resource):
             self._eventer_runner = EventerRunner(
                 conf=self._conf,
                 view_manager=self._view_manager,
-                user_manager=self._user_manager,
                 adapter_infos=self._adapter_infos,
                 eventer_client=self._eventer_client)
             _bind_resource(self.async_group, self._eventer_runner)
@@ -129,9 +121,6 @@ class MainRunner(aio.Resource):
         if self._eventer_component:
             await self._eventer_component.async_close()
 
-        if self._user_manager:
-            await self._user_manager.async_close()
-
         if self._view_manager:
             await self._view_manager.async_close()
 
@@ -141,7 +130,6 @@ class MainRunner(aio.Resource):
         self._eventer_runner = EventerRunner(
             conf=self._conf,
             view_manager=self._view_manager,
-            user_manager=self._user_manager,
             adapter_infos=self._adapter_infos,
             eventer_client=eventer_client)
 
@@ -178,12 +166,10 @@ class EventerRunner(aio.Resource):
     def __init__(self,
                  conf: json.Data,
                  view_manager: hat.gui.server.view.ViewManager,
-                 user_manager: hat.gui.server.user.UserManager,
                  adapter_infos: Collection[hat.gui.server.adapter.ConfAdapterInfo],  # NOQA
                  eventer_client: hat.event.eventer.Client):
         self._conf = conf
         self._view_manager = view_manager
-        self._user_manager = user_manager
         self._adapter_infos = adapter_infos
         self._eventer_client = eventer_client
         self._server_runner = None
@@ -222,7 +208,6 @@ class EventerRunner(aio.Resource):
                 self._server_runner = ServerRunner(
                     conf=self._conf,
                     view_manager=self._view_manager,
-                    user_manager=self._user_manager,
                     adapter_infos=self._adapter_infos,
                     eventer_client=self._eventer_client)
 
@@ -271,17 +256,16 @@ class ServerRunner(aio.Resource):
     def __init__(self,
                  conf: json.Data,
                  view_manager: hat.gui.server.view.ViewManager,
-                 user_manager: hat.gui.server.user.UserManager,
                  adapter_infos: Collection[hat.gui.server.adapter.ConfAdapterInfo],  # NOQA
                  eventer_client: hat.event.eventer.Client):
         self._conf = conf
         self._view_manager = view_manager
-        self._user_manager = user_manager
         self._adapter_infos = adapter_infos
         self._eventer_client = eventer_client
         self._loop = asyncio.get_running_loop()
         self._async_group = aio.Group()
         self._events_queue = collections.deque()
+        self._user_manager = None
         self._adapter_manager = None
         self._server = None
 
@@ -314,6 +298,13 @@ class ServerRunner(aio.Resource):
             await aio.uncancellable(self._stop())
 
     async def _start(self):
+        mlog.debug("creating user manager")
+        self._user_manager = await hat.gui.server.user.create_manager(
+            users_conf=self._conf['users'],
+            view_manager=self._view_manager,
+            eventer_client=self._eventer_client)
+        _bind_resource(self.async_group, self._user_manager)
+
         mlog.debug("creating adapter manager")
         self._adapter_manager = await hat.gui.server.adapter.create_manager(
             infos=self._adapter_infos,
@@ -346,6 +337,9 @@ class ServerRunner(aio.Resource):
 
         if self._adapter_manager:
             await self._adapter_manager.async_close()
+
+        if self._user_manager:
+            await self._user_manager.async_close()
 
 
 def _bind_resource(async_group, resource):

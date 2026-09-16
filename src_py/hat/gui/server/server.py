@@ -11,6 +11,7 @@ from hat import aio
 from hat import json
 from hat import juggler
 import hat.event.common
+import hat.event.eventer
 
 import hat.gui.server.adapter
 import hat.gui.server.client
@@ -30,6 +31,7 @@ async def create_server(host: str,
                         name: str,
                         initial_view: str | None,
                         session_duration: float | None,
+                        session_cookie_domain: str | None,
                         session_cookie_max_age: int | None,
                         view_manager: hat.gui.server.view.ViewManager,
                         user_manager: hat.gui.server.user.UserManager,
@@ -42,6 +44,7 @@ async def create_server(host: str,
     server._name = name
     server._initial_view = initial_view
     server._session_duration = session_duration
+    server._session_cookie_domain = session_cookie_domain
     server._session_cookie_max_age = session_cookie_max_age
     server._view_manager = view_manager
     server._user_manager = user_manager
@@ -178,6 +181,7 @@ class Server(aio.Resource):
         res = aiohttp.web.Response()
         res.set_cookie(_session_id_cookie_name,
                        session.session_id,
+                       domain=self._session_cookie_domain,
                        max_age=self._session_cookie_max_age,
                        httponly=True)
 
@@ -248,6 +252,7 @@ class Server(aio.Resource):
         res_exc = aiohttp.web.HTTPFound(redirect_url)
         res_exc.set_cookie(_session_id_cookie_name,
                            session.session_id,
+                           domain=self._session_cookie_domain,
                            max_age=self._session_cookie_max_age,
                            httponly=True)
 

@@ -94,10 +94,10 @@ properties:
         properties:
             max_sessions:
                 type: integer
-            snapshot_path:
-                type: string
             session_duration:
                 type: number
+            session_cookie_domain:
+                type: string
             session_cookie_max_age:
                 type: integer
             local:

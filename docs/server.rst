@@ -221,16 +221,19 @@ Supported communication includes:
 GUI events
 ----------
 
-In addition to events registered by Adapters, Server registers events
-representing current state of authenticated Clients. These events have
-event type::
+In addition to events registered by Adapters, Server registers events with
+event type:
 
-    gui/<name>/clients
+* ``gui/<name>/clients``
 
-where ``<name>`` represents configured Server's name.
+  Events representing current state of authenticated Clients where ``<name>``
+  represents configured Server's name.
 
-Payload for clients events is defined by
-``hat-gui://events.yaml#/$defs/events/clients``.
+* ``gui/sessions``
+
+  Current state of user sessions shared between all Servers.
+
+Payload for these events is defined in `Events`_.
 
 
 JSON Schemas

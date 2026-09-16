@@ -7,6 +7,7 @@ import time
 
 from hat import aio
 from hat import json
+import hat.event.eventer
 
 from hat.gui.server.view import ViewManager
 
@@ -26,7 +27,8 @@ mlog: logging.Logger = logging.getLogger(__name__)
 
 
 async def create_manager(users_conf: json.Data,
-                         view_manager: ViewManager
+                         view_manager: ViewManager,
+                         eventer_client: hat.event.eventer.Client
                          ) -> 'UserManager':
     manager = UserManager()
     manager._users_conf = users_conf
@@ -51,16 +53,14 @@ async def create_manager(users_conf: json.Data,
             session_ids=session_ids,
             session_update_cb=manager._on_session_update)
 
-        snapshot_path = users_conf.get('snapshot_path')
-        if snapshot_path:
-            manager._store = await create_store(
-                async_group=manager.async_group.create_subgroup(),
-                path=Path(snapshot_path),
-                local_manager=manager._local_manager,
-                oidc_manager=manager._oidc_manager)
+        manager._store = await create_store(
+            async_group=manager.async_group.create_subgroup(),
+            eventer_client=eventer_client,
+            local_manager=manager._local_manager,
+            oidc_manager=manager._oidc_manager)
 
-            for session in collections.deque(manager._store.create_sessions()):
-                manager._add_session(session)
+        for session in collections.deque(manager._store.create_sessions()):
+            manager._add_session(session)
 
         else:
             manager._store = None

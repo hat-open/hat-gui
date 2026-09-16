@@ -1,11 +1,10 @@
 from collections.abc import Iterable
-from pathlib import Path
 import asyncio
 import logging
-import os
 
 from hat import aio
 from hat import json
+import hat.event.eventer
 
 from hat.gui.server.user import common
 from hat.gui.server.user.local import LocalUserSession, LocalUserManager
@@ -16,31 +15,28 @@ mlog: logging.Logger = logging.getLogger(__name__)
 
 
 async def create_store(async_group: aio.Group,
-                       path: Path,
+                       eventer_client: hat.event.eventer.Client,
                        local_manager: LocalUserManager,
                        oidc_manager: OidcUserManager
                        ) -> 'UserSessionStore':
     store = UserSessionStore()
     store._async_group = async_group
-    store._path = path
+    store._eventer_client = eventer_client
     store._local_manager = local_manager
     store._oidc_manager = oidc_manager
-    store._tmp_path = store._path.with_suffix(store._path.suffix + '.tmp')
     store._change_event = asyncio.Event()
-    store._executor = aio.Executor(log_exceptions=False)
 
-    try:
-        if path.exists():
-            store._data = await store._executor.spawn(json.decode_file, path)
+    params = hat.event.common.QueryLatestParams([('gui', 'sessions')])
+    result = await eventer_client.query(params)
 
-        else:
-            store._data = {}
+    if result.events:
+        event = next(iter(result.events))
+        store._data = event.payload.data
 
-        store.async_group.spawn(store._write_loop)
+    else:
+        store._data = {}
 
-    except BaseException:
-        await aio.uncancellable(store._executor.async_close())
-        raise
+    store.async_group.spawn(store._write_loop)
 
     return store
 
@@ -67,7 +63,6 @@ class UserSessionStore(aio.Resource):
         async def cleanup():
             self.close()
             await self._write()
-            await self._executor.async_close()
 
         try:
             while True:
@@ -85,15 +80,16 @@ class UserSessionStore(aio.Resource):
 
     async def _write(self):
         try:
-            data = dict(self._data)
+            event = hat.event.common.RegisterEvent(
+                type=('gui', 'sessions'),
+                source_timestamp=None,
+                payload=hat.event.common.EventPayloadJson(dict(self._data)))
 
-            await self._executor.spawn(json.encode_file, data, self._tmp_path,
-                                       json.get_file_format(self._path))
-
-            await self._executor.spawn(os.replace, self._tmp_path, self._path)
+            mlog.debug("registering sessions event")
+            await self._eventer_client.register([event])
 
         except Exception as e:
-            mlog.error("write error: %s", e, exc_info=e)
+            mlog.warning("write error: %s", e, exc_info=e)
 
     def _encode_session(self, session: common.UserSession) -> json.Data:
         if isinstance(session, LocalUserSession):
