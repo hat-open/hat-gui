@@ -56,7 +56,12 @@ class UserSessionStore(aio.Resource):
             self._change_event.set()
 
     def create_sessions(self) -> Iterable[common.UserSession]:
-        return (self._decode_session(i) for i in self._data.values())
+        for i in self._data.values():
+            try:
+                yield self._decode_session(i)
+
+            except Exception as e:
+                mlog.debug('user session data decode failed: %s', e)
 
     async def _write_loop(self):
 
