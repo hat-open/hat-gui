@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from pathlib import Path
 import asyncio
 import base64
@@ -13,6 +13,7 @@ import pytest
 from hat import aio
 from hat import json
 from hat import util
+import hat.event.common
 
 import hat.gui.server.user
 
@@ -39,6 +40,39 @@ class ViewManager(aio.Resource):
         raise NotImplementedError()
 
 
+class EventerClient(aio.Resource):
+
+    def __init__(self, query_cb=None, register_cb=None):
+        self._async_group = aio.Group()
+        self._query_cb = query_cb
+        self._register_cb = register_cb
+
+    @property
+    def async_group(self) -> aio.Group:
+        return self._async_group
+
+    @property
+    def status(self) -> hat.event.common.Status:
+        return hat.event.common.Status.OPERATIONAL
+
+    async def register(self,
+                       events: Collection[hat.event.common.RegisterEvent],
+                       with_response: bool = False
+                       ) -> Collection[hat.event.common.Event] | None:
+        if with_response:
+            raise NotImplementedError()
+        if not self._register_cb:
+            return
+        self._register_cb(events)
+
+    async def query(self,
+                    params: hat.event.common.common.QueryParams
+                    ) -> hat.event.common.QueryResult:
+        if not self._query_cb:
+            return hat.event.common.QueryResult(events=[], more_follows=False)
+        return self._query_cb(params)
+
+
 def password_hashed(password):
     password_hashed = hashlib.sha256(password.encode('utf-8')).digest()
     salt = secrets.token_bytes(32)
@@ -58,16 +92,12 @@ def id_token(claims):
 @pytest.fixture
 def local_users_conf():
 
-    def create(name, password, snapshot_path=None, max_sessions=10,
-               session_duration=None):
+    def create(name, password, max_sessions=10, session_duration=None):
         conf = {
             'max_sessions': max_sessions,
             'local': [{'name': name,
                        'password': password_hashed(password),
                        'roles': ['admin']}]}
-
-        if snapshot_path:
-            conf['snapshot_path'] = str(snapshot_path)
 
         if session_duration:
             conf['session_duration'] = session_duration
@@ -136,12 +166,14 @@ async def aiohttp_server_factory():
 
 async def test_empty_user_manager():
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     users_conf = {'max_sessions': 10}
 
     user_manager = await hat.gui.server.user.create_manager(
         users_conf=users_conf,
-        view_manager=view_manager)
+        view_manager=view_manager,
+        eventer_client=eventer_client)
 
     assert user_manager.is_open
 
@@ -150,19 +182,22 @@ async def test_empty_user_manager():
     assert user_manager.is_closed
 
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
 async def test_create_local_session(local_users_conf):
     view_confs = [{'name': 'view',
                    'roles': ['operator', 'admin']}]
     view_manager = ViewManager(view_confs)
+    eventer_client = EventerClient()
 
     name = 'name'
     password = 'pass'
 
     user_manager = await hat.gui.server.user.create_manager(
         users_conf=local_users_conf(name, password),
-        view_manager=view_manager)
+        view_manager=view_manager,
+        eventer_client=eventer_client)
 
     session = await user_manager.create_local_session(name=name,
                                                       password=password)
@@ -179,17 +214,20 @@ async def test_create_local_session(local_users_conf):
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
 async def test_create_local_session_no_view(local_users_conf):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     name = 'name'
     password = 'pass'
 
     user_manager = await hat.gui.server.user.create_manager(
         users_conf=local_users_conf(name, password),
-        view_manager=view_manager)
+        view_manager=view_manager,
+        eventer_client=eventer_client)
 
     session = await user_manager.create_local_session(name=name,
                                                       password=password)
@@ -206,17 +244,20 @@ async def test_create_local_session_no_view(local_users_conf):
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
 async def test_create_local_session_invalid_name(local_users_conf):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     name = 'name'
     password = 'pass'
 
     user_manager = await hat.gui.server.user.create_manager(
         users_conf=local_users_conf(name, password),
-        view_manager=view_manager)
+        view_manager=view_manager,
+        eventer_client=eventer_client)
 
     with pytest.raises(Exception):
         await user_manager.create_local_session(name='nonexistent',
@@ -224,17 +265,20 @@ async def test_create_local_session_invalid_name(local_users_conf):
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
 async def test_create_local_session_invalid_password(local_users_conf):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     name = 'name'
     password = 'pass'
 
     user_manager = await hat.gui.server.user.create_manager(
         users_conf=local_users_conf(name, password),
-        view_manager=view_manager)
+        view_manager=view_manager,
+        eventer_client=eventer_client)
 
     with pytest.raises(Exception):
         await user_manager.create_local_session(name=name,
@@ -242,15 +286,18 @@ async def test_create_local_session_invalid_password(local_users_conf):
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
 async def test_get_oidc_url(oidc_users_conf, port):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     oidc_name = 'test'
     user_manager = await hat.gui.server.user.create_manager(
         users_conf=oidc_users_conf(name=oidc_name),
-        view_manager=view_manager)
+        view_manager=view_manager,
+        eventer_client=eventer_client)
 
     url = user_manager.get_oidc_url(name=oidc_name,
                                     state='test-state')
@@ -271,14 +318,17 @@ async def test_get_oidc_url(oidc_users_conf, port):
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
 async def test_get_oidc_url_invalid_name(oidc_users_conf, port):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     user_manager = await hat.gui.server.user.create_manager(
         users_conf=oidc_users_conf(),
-        view_manager=view_manager)
+        view_manager=view_manager,
+        eventer_client=eventer_client)
 
     with pytest.raises(Exception):
         user_manager.get_oidc_url(name='nonexistent',
@@ -286,6 +336,7 @@ async def test_get_oidc_url_invalid_name(oidc_users_conf, port):
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
 async def test_create_oidc_session(oidc_users_conf, aiohttp_server_factory,
@@ -293,10 +344,13 @@ async def test_create_oidc_session(oidc_users_conf, aiohttp_server_factory,
     view_confs = [{'name': 'view',
                    'roles': ['operator', 'admin']}]
     view_manager = ViewManager(view_confs)
+    eventer_client = EventerClient()
 
     username = 'name'
     token = id_token({'name': username,
                       'groups': ['administrator']})
+    access_token = 'test-access-token'
+    refresh_token = 'test-refresh-token'
 
     received = {}
 
@@ -306,7 +360,8 @@ async def test_create_oidc_session(oidc_users_conf, aiohttp_server_factory,
         received['data'] = await request.text()
 
         return aiohttp.web.json_response({
-            'access_token': 'test-access-token',
+            'access_token': access_token,
+            'refresh_token': refresh_token,
             'id_token': token})
 
     async with aiohttp_server_factory(port=port, handler=token_handler):
@@ -314,20 +369,22 @@ async def test_create_oidc_session(oidc_users_conf, aiohttp_server_factory,
         oidc_name = 'test'
         user_manager = await hat.gui.server.user.create_manager(
             users_conf=oidc_users_conf(name=oidc_name),
-            view_manager=view_manager)
+            view_manager=view_manager,
+            eventer_client=eventer_client)
 
         session = await user_manager.create_oidc_session(
             name=oidc_name, code='authorization-code')
 
         assert session.user.name == username
         assert session.user.roles == {'admin'}
+        assert session.user.views == {'view'}
 
         assert session.session_id
         assert session.created
         assert session.updated
         assert session.name == oidc_name
-        assert session.access_token
-        assert session.refresh_token is None
+        assert session.access_token == access_token
+        assert session.refresh_token == refresh_token
 
         assert user_manager.get_session(session.session_id) is session
 
@@ -344,11 +401,14 @@ async def test_create_oidc_session(oidc_users_conf, aiohttp_server_factory,
 
         await user_manager.async_close()
         await view_manager.async_close()
+        await eventer_client.async_close()
 
 
-async def test_create_oidc_session_token_error(
-        oidc_users_conf, aiohttp_server_factory, port):
+async def test_create_oidc_session_token_error(oidc_users_conf,
+                                               aiohttp_server_factory,
+                                               port):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     async def token_handler(request):
         return aiohttp.web.Response(status=400)
@@ -358,7 +418,8 @@ async def test_create_oidc_session_token_error(
         oidc_name = 'test'
         user_manager = await hat.gui.server.user.create_manager(
            users_conf=oidc_users_conf(name=oidc_name),
-           view_manager=view_manager)
+           view_manager=view_manager,
+           eventer_client=eventer_client)
 
         with pytest.raises(Exception):
             await user_manager.create_oidc_session(
@@ -366,11 +427,14 @@ async def test_create_oidc_session_token_error(
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
-async def test_create_oidc_session_invalid_oidc_name(
-        oidc_users_conf, aiohttp_server_factory, port):
+async def test_create_oidc_session_invalid_oidc_name(oidc_users_conf,
+                                                     aiohttp_server_factory,
+                                                     port):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     token = id_token({'name': 'name',
                       'groups': ['administrator']})
@@ -383,7 +447,9 @@ async def test_create_oidc_session_invalid_oidc_name(
     async with aiohttp_server_factory(port=port, handler=token_handler):
 
         user_manager = await hat.gui.server.user.create_manager(
-            users_conf=oidc_users_conf(), view_manager=view_manager)
+            users_conf=oidc_users_conf(),
+            view_manager=view_manager,
+            eventer_client=eventer_client)
 
         with pytest.raises(Exception):
             await user_manager.create_oidc_session(
@@ -391,11 +457,14 @@ async def test_create_oidc_session_invalid_oidc_name(
 
         await user_manager.async_close()
         await view_manager.async_close()
+        await eventer_client.async_close()
 
 
-async def test_create_oidc_session_invalid_claims_name(
-        oidc_users_conf, aiohttp_server_factory, port):
+async def test_create_oidc_session_invalid_claims_name(oidc_users_conf,
+                                                       aiohttp_server_factory,
+                                                       port):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     invalid_name = 1234
     token = id_token({'name': invalid_name,
@@ -411,7 +480,8 @@ async def test_create_oidc_session_invalid_claims_name(
         oidc_name = 'test'
         user_manager = await hat.gui.server.user.create_manager(
             users_conf=oidc_users_conf(name=oidc_name),
-            view_manager=view_manager)
+            view_manager=view_manager,
+            eventer_client=eventer_client)
 
         with pytest.raises(Exception):
             await user_manager.create_oidc_session(
@@ -419,13 +489,16 @@ async def test_create_oidc_session_invalid_claims_name(
 
         await user_manager.async_close()
         await view_manager.async_close()
+        await eventer_client.async_close()
 
 
-async def test_create_oidc_session_invalid_claims_roles(
-        oidc_users_conf, aiohttp_server_factory, port):
+async def test_create_oidc_session_invalid_claims_roles(oidc_users_conf,
+                                                        aiohttp_server_factory,
+                                                        port):
     view_confs = [{'name': 'view',
                    'roles': ['operator', 'admin']}]
     view_manager = ViewManager(view_confs)
+    eventer_client = EventerClient()
 
     token = id_token({'name': 'name',
                       'grs': ['administrator']})
@@ -440,7 +513,8 @@ async def test_create_oidc_session_invalid_claims_roles(
         oidc_name = 'test'
         user_manager = await hat.gui.server.user.create_manager(
             users_conf=oidc_users_conf(name=oidc_name),
-            view_manager=view_manager)
+            view_manager=view_manager,
+            eventer_client=eventer_client)
 
         with pytest.raises(Exception):
             await user_manager.create_oidc_session(
@@ -448,108 +522,20 @@ async def test_create_oidc_session_invalid_claims_roles(
 
         await user_manager.async_close()
         await view_manager.async_close()
-
-
-async def test_create_snapshot(tmp_path, local_users_conf, monkeypatch):
-    view_manager = ViewManager(view_confs=[])
-
-    snapshot_path = tmp_path / 'snapshot.json'
-    name = 'name'
-    password = 'pass'
-
-    asyncio_sleep = asyncio.sleep
-
-    async def sleep_less(delay):
-        await asyncio_sleep(delay / 100)
-
-    monkeypatch.setattr(asyncio, 'sleep', sleep_less)
-
-    user_manager = await hat.gui.server.user.create_manager(
-        users_conf=local_users_conf(name=name, password=password,
-                                    snapshot_path=snapshot_path),
-        view_manager=view_manager)
-
-    await user_manager.create_local_session(name=name, password=password)
-
-    await asyncio.sleep(6)
-
-    assert snapshot_path.exists()
-
-    await user_manager.async_close()
-    await view_manager.async_close()
-
-
-async def test_create_snapshot_failure_wrong_path(tmp_path, local_users_conf,
-                                                  monkeypatch):
-    view_manager = ViewManager(view_confs=[])
-
-    invalid_snapshot_path = tmp_path / 'snapshot.xyz'
-    name = 'name'
-    password = 'pass'
-
-    asyncio_sleep = asyncio.sleep
-
-    async def sleep_less(delay):
-        await asyncio_sleep(delay / 100)
-
-    monkeypatch.setattr(asyncio, 'sleep', sleep_less)
-
-    user_manager = await hat.gui.server.user.create_manager(
-            users_conf=local_users_conf(name=name, password=password,
-                                        snapshot_path=invalid_snapshot_path),
-            view_manager=view_manager)
-
-    await user_manager.create_local_session(name=name, password=password)
-
-    await asyncio.sleep(6)
-
-    assert not invalid_snapshot_path.exists()
-
-    assert user_manager.is_open
-
-    await user_manager.async_close()
-    await view_manager.async_close()
-
-
-async def test_create_snapshot_failure_no_session(tmp_path, local_users_conf,
-                                                  monkeypatch):
-    view_manager = ViewManager(view_confs=[])
-
-    snapshot_path = tmp_path / 'snapshot.yaml'
-    name = 'name'
-    password = 'pass'
-
-    asyncio_sleep = asyncio.sleep
-
-    async def sleep_less(delay):
-        await asyncio_sleep(delay / 100)
-
-    monkeypatch.setattr(asyncio, 'sleep', sleep_less)
-
-    user_manager = await hat.gui.server.user.create_manager(
-        users_conf=local_users_conf(name=name, password=password,
-                                    snapshot_path=snapshot_path),
-        view_manager=view_manager)
-
-    await asyncio.sleep(6)
-
-    assert not snapshot_path.exists()
-
-    assert user_manager.is_open
-
-    await user_manager.async_close()
-    await view_manager.async_close()
+        await eventer_client.async_close()
 
 
 async def test_get_session(local_users_conf):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     name = 'name'
     password = 'pass'
 
     user_manager = await hat.gui.server.user.create_manager(
         users_conf=local_users_conf(name=name, password=password),
-        view_manager=view_manager)
+        view_manager=view_manager,
+        eventer_client=eventer_client)
 
     session = await user_manager.create_local_session(name=name,
                                                       password=password)
@@ -561,17 +547,20 @@ async def test_get_session(local_users_conf):
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
 async def test_get_session_invalid(local_users_conf):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     name = 'name'
     password = 'pass'
 
     user_manager = await hat.gui.server.user.create_manager(
         users_conf=local_users_conf(name=name, password=password),
-        view_manager=view_manager)
+        view_manager=view_manager,
+        eventer_client=eventer_client)
 
     retrieved_session = user_manager.get_session('nonexistent')
 
@@ -579,17 +568,20 @@ async def test_get_session_invalid(local_users_conf):
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
 async def test_get_session_closed(local_users_conf):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     name = 'name'
     password = 'pass'
 
     user_manager = await hat.gui.server.user.create_manager(
         users_conf=local_users_conf(name=name, password=password),
-        view_manager=view_manager)
+        view_manager=view_manager,
+        eventer_client=eventer_client)
 
     session = await user_manager.create_local_session(name=name,
                                                       password=password)
@@ -602,10 +594,12 @@ async def test_get_session_closed(local_users_conf):
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
 async def test_max_sessions(local_users_conf):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     max_sessions = 5
     name = 'name'
@@ -614,7 +608,8 @@ async def test_max_sessions(local_users_conf):
     user_manager = await hat.gui.server.user.create_manager(
         users_conf=local_users_conf(name=name, password=password,
                                     max_sessions=max_sessions),
-        view_manager=view_manager)
+        view_manager=view_manager,
+        eventer_client=eventer_client)
 
     session_ids = []
     for i in range(max_sessions + 1):
@@ -630,10 +625,12 @@ async def test_max_sessions(local_users_conf):
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
 async def test_max_sessions_closed(local_users_conf):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     max_sessions = 2
     name = 'name'
@@ -642,7 +639,8 @@ async def test_max_sessions_closed(local_users_conf):
     user_manager = await hat.gui.server.user.create_manager(
         users_conf=local_users_conf(name=name, password=password,
                                     max_sessions=max_sessions),
-        view_manager=view_manager)
+        view_manager=view_manager,
+        eventer_client=eventer_client)
 
     session = await user_manager.create_local_session(name=name,
                                                       password=password)
@@ -665,10 +663,12 @@ async def test_max_sessions_closed(local_users_conf):
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
 async def test_session_duration(local_users_conf):
     view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient()
 
     session_duration = 0.1
     name = 'name'
@@ -677,7 +677,8 @@ async def test_session_duration(local_users_conf):
     user_manager = await hat.gui.server.user.create_manager(
         users_conf=local_users_conf(name=name, password=password,
                                     session_duration=session_duration),
-        view_manager=view_manager)
+        view_manager=view_manager,
+        eventer_client=eventer_client)
 
     session = await user_manager.create_local_session(name=name,
                                                       password=password)
@@ -690,87 +691,246 @@ async def test_session_duration(local_users_conf):
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
 
 
-async def test_get_session_snapshot(tmp_path, aiohttp_server_factory, port):
-    view_confs = [{'name': 'view',
-                   'roles': ['operator', 'admin']}]
-    view_manager = ViewManager(view_confs)
+async def test_initial_query():
 
-    snapshot_path = tmp_path / 'snapshot.json'
+    def on_query(params):
+        assert isinstance(params, hat.event.common.QueryLatestParams)
+        assert len(params.event_types) == 1
+        assert params.event_types[0] == ('gui', 'sessions')
+        return hat.event.common.QueryResult(events=[], more_follows=False)
+
+    view_manager = ViewManager(view_confs=[])
+    eventer_client = EventerClient(query_cb=on_query)
+
+    users_conf = {'max_sessions': 10}
+
+    user_manager = await hat.gui.server.user.create_manager(
+        users_conf=users_conf,
+        view_manager=view_manager,
+        eventer_client=eventer_client)
+
+    await user_manager.async_close()
+    await view_manager.async_close()
+    await eventer_client.async_close()
+
+
+async def test_create_session_event_local(local_users_conf, monkeypatch):
+    register_queue = aio.Queue()
+
+    view_manager = ViewManager([])
+    eventer_client = EventerClient(register_cb=register_queue.put_nowait)
+
     name = 'name'
-    password = 'pass'
-    users_conf = {
-        'max_sessions': 10,
-        'snapshot_path': str(snapshot_path),
-        'local': [{'name': name,
-                   'password': password_hashed(password),
-                   'roles': ['operator']}],
-        'oidc': [{
-            'name': 'test',
-            'local_url': f'http://localhost:{port}',
-            'authorize_url': 'https://oidc.example/authorize',
-            'token_url': f'http://localhost:{port}/token',
-            'client_id': 'hat-gui',
-            'client_secret': 'secret',
-            'scope': [
-                'profile',
-                'email'
-            ],
-            'claims': {
-                'name': 'name',
-                'roles': 'groups'},
-            'roles': {
-                'administrator': 'admin'}}]}
+    password = 'password'
 
-    token = id_token({'name': 'name',
+    asyncio_sleep = asyncio.sleep
+
+    async def sleep_less(delay):
+        await asyncio_sleep(0.01)
+
+    monkeypatch.setattr(asyncio, 'sleep', sleep_less)
+
+    user_manager = await hat.gui.server.user.create_manager(
+        users_conf=local_users_conf(name, password),
+        view_manager=view_manager,
+        eventer_client=eventer_client)
+
+    session = await user_manager.create_local_session(name=name,
+                                                      password=password)
+
+    events = await register_queue.get()
+    assert len(events) == 1
+    sessions_event = events[0]
+    assert sessions_event.type == ('gui', 'sessions')
+    assert sessions_event.source_timestamp is None
+    assert len(sessions_event.payload.data) == 1
+    assert sessions_event.payload.data.get(session.session_id)
+    session_data = sessions_event.payload.data[session.session_id]
+    assert session_data == {
+        'type': 'local',
+        'data': {
+            'name': name,
+            'session_id': session.session_id,
+            'created': session.created,
+            'updated': session.updated}}
+
+    await user_manager.async_close()
+    await view_manager.async_close()
+    await eventer_client.async_close()
+
+
+async def test_create_session_event_oidc(oidc_users_conf,
+                                         aiohttp_server_factory, port,
+                                         monkeypatch):
+    register_queue = aio.Queue()
+
+    view_manager = ViewManager([])
+    eventer_client = EventerClient(register_cb=register_queue.put_nowait)
+
+    asyncio_sleep = asyncio.sleep
+
+    async def sleep_less(delay):
+        await asyncio_sleep(0.01)
+
+    monkeypatch.setattr(asyncio, 'sleep', sleep_less)
+
+    username = 'name'
+    token = id_token({'name': username,
                       'groups': ['administrator']})
+
+    access_token = 'test-access-token'
 
     async def token_handler(request):
         return aiohttp.web.json_response({
-            'access_token': 'test-access-token',
+            'access_token': access_token,
             'id_token': token})
 
     async with aiohttp_server_factory(port=port, handler=token_handler):
 
+        oidc_name = 'test'
         user_manager = await hat.gui.server.user.create_manager(
-            users_conf=users_conf, view_manager=view_manager)
+            users_conf=oidc_users_conf(name=oidc_name),
+            view_manager=view_manager,
+            eventer_client=eventer_client)
 
-        session_local = await user_manager.create_local_session(
-            name=name, password=password)
+        session = await user_manager.create_oidc_session(
+            name=oidc_name, code='authorization-code')
 
-        session_oidc = await user_manager.create_oidc_session(
-            name='test', code='authorization-code')
-
-    await user_manager.async_close()
-
-    user_manager = await hat.gui.server.user.create_manager(
-        users_conf=users_conf,
-        view_manager=view_manager)
-
-    retrieved_session = user_manager.get_session(session_local.session_id)
-    assert retrieved_session is not None
-    assert retrieved_session.session_id == session_local.session_id
-    assert retrieved_session.created == session_local.created
-    assert retrieved_session.updated == session_local.updated
-
-    assert retrieved_session.user
-    assert retrieved_session.user.name == session_local.user.name
-    assert retrieved_session.user.roles == session_local.user.roles
-    assert retrieved_session.user.views == session_local.user.views
-
-    retrieved_session = user_manager.get_session(session_oidc.session_id)
-    assert retrieved_session is not None
-    assert retrieved_session.session_id == session_oidc.session_id
-    assert retrieved_session.created == session_oidc.created
-    assert retrieved_session.updated == session_oidc.updated
-    assert retrieved_session.access_token == session_oidc.access_token
-    assert retrieved_session.refresh_token == session_oidc.refresh_token
-
-    assert retrieved_session.user
-    assert retrieved_session.user.name == session_oidc.user.name
-    assert retrieved_session.user.roles == session_oidc.user.roles
-    assert retrieved_session.user.views == session_oidc.user.views
+    events = await register_queue.get()
+    assert len(events) == 1
+    sessions_event = events[0]
+    assert sessions_event.type == ('gui', 'sessions')
+    assert sessions_event.source_timestamp is None
+    assert len(sessions_event.payload.data) == 1
+    assert sessions_event.payload.data.get(session.session_id)
+    session_data = sessions_event.payload.data[session.session_id]
+    assert session_data == {
+        'type': 'oidc',
+        'data': {
+            'name': oidc_name,
+            'session_id': session.session_id,
+            'user': {
+                'name': session.user.name,
+                'roles': list(session.user.roles)},
+            'created': session.created,
+            'updated': session.updated,
+            'access_token': session.access_token,
+            'refresh_token': session.refresh_token}}
 
     await user_manager.async_close()
     await view_manager.async_close()
+    await eventer_client.async_close()
+
+
+async def test_get_session_from_event_local(local_users_conf):
+    name = 'name'
+    session_id = 'xyz123'
+    created = 12345
+    updated = 54321
+
+    def on_query(params):
+        return hat.event.common.QueryResult(
+            events=[hat.event.common.Event(
+                        id=hat.event.common.EventId(1, 1, 1),
+                        type=('gui', 'sessions'),
+                        timestamp=hat.event.common.now(),
+                        source_timestamp=None,
+                        payload=hat.event.common.EventPayloadJson({
+                            'xyz123': {
+                                'type': 'local',
+                                'data': {
+                                    'name': name,
+                                    'session_id': session_id,
+                                    'created': created,
+                                    'updated': updated}}}))],
+            more_follows=False)
+
+    view_confs = [{'name': 'view',
+                   'roles': ['operator', 'admin']}]
+    view_manager = ViewManager(view_confs)
+    eventer_client = EventerClient(query_cb=on_query)
+
+    name = 'name'
+    password = 'password'
+
+    user_manager = await hat.gui.server.user.create_manager(
+        users_conf=local_users_conf(name, password),
+        view_manager=view_manager,
+        eventer_client=eventer_client)
+
+    session = user_manager.get_session(session_id)
+    assert session
+    assert session.user
+    assert session.user.name == name
+    assert session.user.roles == {'admin'}
+    assert session.user.views == {'view'}
+
+    assert session.session_id == session_id
+    assert session.created == created
+    assert session.updated == updated
+
+    await user_manager.async_close()
+    await view_manager.async_close()
+    await eventer_client.async_close()
+
+
+async def test_get_session_from_event_oidc(oidc_users_conf):
+    oidc_name = 'test'
+    username = 'name'
+    session_id = 'xyz123'
+    created = 12345
+    updated = 54321
+    access_token = 'abc123'
+    refresh_token = 'cba123'
+
+    def on_query(params):
+        return hat.event.common.QueryResult(
+            events=[hat.event.common.Event(
+                        id=hat.event.common.EventId(1, 1, 1),
+                        type=('gui', 'sessions'),
+                        timestamp=hat.event.common.now(),
+                        source_timestamp=None,
+                        payload=hat.event.common.EventPayloadJson({
+                            'xyz123': {
+                                'type': 'oidc',
+                                'data': {
+                                    'name': oidc_name,
+                                    'session_id': session_id,
+                                    'user': {
+                                        'name': username,
+                                        'roles': ['admin']},
+                                    'created': created,
+                                    'updated': updated,
+                                    'access_token': access_token,
+                                    'refresh_token': refresh_token}}}))],
+            more_follows=False)
+
+    view_confs = [{'name': 'view',
+                   'roles': ['operator', 'admin']}]
+    view_manager = ViewManager(view_confs)
+    eventer_client = EventerClient(query_cb=on_query)
+
+    user_manager = await hat.gui.server.user.create_manager(
+            users_conf=oidc_users_conf(name=oidc_name),
+            view_manager=view_manager,
+            eventer_client=eventer_client)
+
+    session = user_manager.get_session(session_id)
+    assert session
+    assert session.user
+    assert session.user.name == username
+    assert session.user.roles == {'admin'}
+    assert session.user.views == {'view'}
+
+    assert session.session_id == session_id
+    assert session.created == created
+    assert session.updated == updated
+    assert session.access_token == access_token
+    assert session.refresh_token == refresh_token
+
+    await user_manager.async_close()
+    await view_manager.async_close()
+    await eventer_client.async_close()

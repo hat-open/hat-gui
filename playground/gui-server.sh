@@ -55,7 +55,6 @@ views:
         - builtin: login
 users:
   max_sessions: 10
-  snapshot_path: $DATA_PATH/snapshot.json
   local:
     - name: user1
       password: $PASSWORD
