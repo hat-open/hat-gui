@@ -1,4 +1,3 @@
-from pathlib import Path
 import asyncio
 import collections
 import logging
@@ -61,9 +60,6 @@ async def create_manager(users_conf: json.Data,
 
         for session in collections.deque(manager._store.create_sessions()):
             manager._add_session(session)
-
-        else:
-            manager._store = None
 
     except BaseException:
         await aio.uncancellable(manager.async_close())

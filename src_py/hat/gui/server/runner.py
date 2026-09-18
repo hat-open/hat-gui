@@ -324,6 +324,7 @@ class ServerRunner(aio.Resource):
             name=self._conf['name'],
             initial_view=self._conf.get('initial_view'),
             session_duration=self._conf['users'].get('session_duration'),
+            session_cookie_domain=self._conf['users'].get('session_cookie_domain'),  # NOQA
             session_cookie_max_age=self._conf['users'].get('session_cookie_max_age'),  # NOQA
             view_manager=self._view_manager,
             user_manager=self._user_manager,
