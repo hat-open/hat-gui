@@ -148,6 +148,7 @@ class Server(aio.Resource):
 
         return aiohttp.web.Response(
             content_type='text/html',
+            headers={'Access-Control-Allow-Origin': '*'},
             text=body)
 
     async def _process_post_login_local(self, req):
