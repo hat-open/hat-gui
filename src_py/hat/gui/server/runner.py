@@ -5,7 +5,7 @@ import logging
 
 from hat import aio
 from hat import json
-from hat.drivers import tcp
+from hat.drivers import net
 import hat.event.eventer
 import hat.event.component
 
@@ -73,8 +73,8 @@ class MainRunner(aio.Resource):
 
             mlog.debug("creating eventer component")
             self._eventer_component = await hat.event.component.connect(
-                addr=tcp.Address(monitor_component_conf['host'],
-                                 monitor_component_conf['port']),
+                addr=net.TcpAddress(monitor_component_conf['host'],
+                                    monitor_component_conf['port']),
                 name=self._conf['name'],
                 group=monitor_component_conf['gui_group'],
                 server_group=monitor_component_conf['event_server_group'],
@@ -92,8 +92,8 @@ class MainRunner(aio.Resource):
 
             mlog.debug("creating eventer client")
             self._eventer_client = await hat.event.eventer.connect(
-                addr=tcp.Address(eventer_server_conf['host'],
-                                 eventer_server_conf['port']),
+                addr=net.TcpAddress(eventer_server_conf['host'],
+                                    eventer_server_conf['port']),
                 client_name=f"gui/{self._conf['name']}",
                 subscriptions=subscriptions,
                 status_cb=self._on_client_status,
