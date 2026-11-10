@@ -103,7 +103,9 @@ class OidcUserManager(aio.Resource):
         query['scope'] = ' '.join(['openid', *oidc_conf['scope']])
         query['state'] = state
 
-        return url._replace(query=urllib.parse.urlencode(query)).geturl()
+        query_str = urllib.parse.urlencode(query, doseq=True)
+
+        return url._replace(query=query_str).geturl()
 
     async def create_session(self,
                              name: str,

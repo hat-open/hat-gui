@@ -116,7 +116,7 @@ def oidc_users_conf(port):
             'oidc': [{
                 'name': name,
                 'local_url': f'http://localhost:{port}',
-                'authorize_url': 'https://oidc.example/authorize',
+                'authorize_url': 'https://oidc.example/authorize?abc=xyz',
                 'token_url': f'http://127.0.0.1:{port}/token',
                 'client_id': 'hat-gui',
                 'client_secret': 'secret',
@@ -315,6 +315,7 @@ async def test_get_oidc_url(oidc_users_conf, port):
         f'http://localhost:{port}/login/oidc/test/cb']
     assert query['scope'] == ['openid profile email']
     assert query['state'] == ['test-state']
+    assert query['abc'] == ['xyz']
 
     await user_manager.async_close()
     await view_manager.async_close()
